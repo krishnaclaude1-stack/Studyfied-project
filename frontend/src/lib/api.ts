@@ -1,6 +1,7 @@
 // API client functions for backend endpoints
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// Use empty string for relative URLs - Vite proxy handles routing to backend
+const API_BASE_URL = ''
 
 interface ErrorResponse {
   error: {
@@ -94,7 +95,7 @@ export interface GenerateLessonResponse {
  * Analyze content from a URL
  */
 export async function analyzeUrl(url: string): Promise<AnalyzeResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/analyze/url`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/analyze`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

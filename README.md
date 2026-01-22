@@ -199,14 +199,14 @@ We created 8 custom Kiro prompts tailored for EdTech AI development:
 
 ```mermaid
 graph LR
-    A[@epic-brief] --> B[@core-flows]
-    B --> C[@tech-plan]
-    C --> D[@architecture-validation]
-    D --> E[@ticket-breakdown]
-    E --> F[@plan-mode]
+    A["@epic-brief"] --> B["@core-flows"]
+    B --> C["@tech-plan"]
+    C --> D["@architecture-validation"]
+    D --> E["@ticket-breakdown"]
+    E --> F["@plan-mode"]
     F --> G[Implementation]
-    G --> H[@code-review]
-    H --> I[@implementation-validation]
+    G --> H["@code-review"]
+    H --> I["@implementation-validation"]
 ```
 
 ### Automation & Statistics

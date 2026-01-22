@@ -222,7 +222,7 @@ class AIDirectorService:
         """
         self._settings = settings or get_settings()
         self._client: genai.Client | None = None
-        self._model_name = "gemini-3-flash-preview"
+        self._model_name = "gemini-flash-latest"
     
     def _get_client(self) -> genai.Client:
         """
