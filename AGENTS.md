@@ -64,7 +64,8 @@ studyfied/
 │       ├── schemas/
 │       │   ├── __init__.py      # CamelCaseModel base class
 │       │   ├── analyze.py       # Pydantic models for analyze endpoint
-│       │   └── image_generation.py  # Pydantic models for image generation
+│       │   ├── image_generation.py  # Pydantic models for image generation
+│       │   └── lesson.py        # Pydantic models for lesson manifest
 │       └── services/
 │           ├── content_ingestor.py     # URL/PDF extraction + validation
 │           ├── librarian.py            # Topic extraction via Gemini
@@ -161,6 +162,7 @@ All errors follow this structure:
 **Asset Generation Pipeline** (`/api/v1/generate*`)
 - `POST /api/v1/generate-prompts` - Generate 5 image prompts from topic text (no images)
 - `POST /api/v1/generate-assets` - Full pipeline: prompts + images + processing (30-60s)
+- `POST /api/v1/generate` - Complete lesson generation: assets + manifest + TTS audio (60-90s)
 - Returns: `{ storyboardOverview: {...}, assets/images: [...] }` or error response
 
 **Health Check** (`/api/health`)
@@ -283,10 +285,14 @@ Frontend State Management
 - Implements 1-retry logic for JSON/validation failures
 - System prompt defines strict extraction rules from `docs/prompt-spec.md`
 
-**AIDirectorService** (`backend/app/services/ai_director.py`) [TODO]
-- Orchestrates lesson script generation with audio-visual sync
-- Maps TTS lines to visual events and checkpoints
-- References `docs/prompt-spec.md` section "Language Model Prompt (Lesson Director)"
+**AIDirectorService** (`backend/app/services/ai_director.py`)
+- Uses Gemini 3 Flash Preview to generate complete lesson manifests with scenes, checkpoints, and visual events
+- Orchestrates lesson script generation with audio-visual sync (Khan Academy style narration)
+- Maps TTS lines to visual events and checkpoints for synchronization
+- Enforces hard constraints: max 180 seconds duration, max 5 scenes
+- Validates all asset references and checkpoint consistency
+- Implements 1-retry logic for JSON/validation failures
+- References `docs/prompt-spec.md` section "Language Model Prompt (Lesson Director)" (lines 280-483)
 
 **AssetFactoryService** (`backend/app/services/asset_factory.py`)
 - Calls Nano Banana Pro API for high-res image generation (async polling with backoff)
@@ -301,11 +307,14 @@ Frontend State Management
 - Validates mandatory prompt prefix and enforces exactly 5 images
 - Implements 1-retry logic for validation failures
 
-**TTSService** (`backend/app/services/tts_service.py`) [TODO]
-- Generates audio from lesson narration script
-- Targets ElevenLabs Rachel voice for production
-- Browser TTS fallback for development
-- Provides timestamp alignment for checkpoint sync
+**TTSService** (`backend/app/services/tts_service.py`)
+- Generates audio from lesson narration script using ElevenLabs API
+- Uses Rachel voice (voice ID: 21m00Tcm4TlvDq8ikWAM) with eleven_multilingual_v2 model
+- Returns MP3 audio at 44.1kHz/128kbps for optimal quality
+- Graceful fallback in development: returns empty audio when API key not configured
+- Concatenates narration segments with pauses (" ... ") between segments
+- Provides audio duration extraction using mutagen library
+- Handles quota limits and authentication errors with structured exceptions
 
 ### Exception Hierarchy
 
@@ -325,6 +334,13 @@ Custom exceptions in `backend/app/services/exceptions.py`:
   - `InvalidImagePromptCountError` (not exactly 5 prompts)
   - `NanoBananaAPIError` (image generation API errors)
   - `ImageProcessingError` (OpenCV processing failures)
+- `LessonGenerationError` (base)
+  - `LessonScriptGenerationError` (Gemini lesson generation failed)
+  - `InvalidLessonDurationError` (duration exceeds 180 seconds)
+  - `InvalidSceneCountError` (scene count exceeds 5)
+- `TTSGenerationError` (base)
+  - `ElevenLabsAPIError` (ElevenLabs API call failures)
+  - `AudioGenerationError` (audio generation failures)
 
 ## Key Implementation Details
 
@@ -332,7 +348,7 @@ Custom exceptions in `backend/app/services/exceptions.py`:
 
 **Pattern**: Instead of syncing every pixel to audio, the system forces animation to wait for TTS timestamp at the end of every sentence before starting the next stroke.
 
-**Implementation Location**: `AIDirectorService.generate_lesson_plan()` (TODO)
+**Implementation Location**: `AIDirectorService.generate_lesson_manifest()` - Each narration segment has a `checkpointId` that aligns with visual events
 
 ### Asset Pipeline
 
@@ -417,8 +433,8 @@ Custom exceptions in `backend/app/services/exceptions.py`:
 - ✅ Topic Extraction (Librarian Agent) - LibrarianService
 - ✅ Image Prompt Generation - ImageSteeringService
 - ✅ Asset Generation & Processing - AssetFactoryService (Nano Banana + OpenCV)
-- 🔄 Lesson Script Generation - AIDirectorService
-- 🔄 Audio Generation & Sync - TTSService
+- ✅ Lesson Script Generation - AIDirectorService
+- ✅ Audio Generation & Sync - TTSService
 - 🔄 Canvas Rendering & Playback
 - 🔄 Interactive Quizzes
 
