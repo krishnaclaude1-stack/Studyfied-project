@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import health, analyze
+from app.routers import health, analyze, generate_assets
 
 settings = get_settings()
 
@@ -24,3 +24,4 @@ app.add_middleware(
 # Include routers
 app.include_router(health.router)
 app.include_router(analyze.router)
+app.include_router(generate_assets.router)

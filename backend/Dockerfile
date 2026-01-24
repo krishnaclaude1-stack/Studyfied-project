@@ -13,7 +13,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-# Install system dependencies required for Playwright/Chromium
+# Install system dependencies required for Playwright/Chromium and OpenCV
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     # Playwright/Chromium dependencies
@@ -34,6 +34,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 \
     libpango-1.0-0 \
     libcairo2 \
+    # OpenCV dependencies
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements file

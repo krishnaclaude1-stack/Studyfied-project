@@ -111,3 +111,61 @@ class TopicExtractionFailedError(TopicExtractionError):
             code="TOPIC_EXTRACTION_FAILED",
             details={"reason": reason}
         )
+
+
+class ImageGenerationError(Exception):
+    """Base exception for image generation errors."""
+    
+    def __init__(self, message: str, code: str, details: dict | None = None):
+        self.message = message
+        self.code = code
+        self.details = details or {}
+        super().__init__(self.message)
+
+
+class ImagePromptGenerationError(ImageGenerationError):
+    """Raised when Gemini fails to generate valid image prompts."""
+    
+    def __init__(self, reason: str = "Failed to generate image prompts"):
+        super().__init__(
+            message=reason,
+            code="IMAGE_PROMPT_GENERATION_FAILED",
+            details={"reason": reason}
+        )
+
+
+class InvalidImagePromptCountError(ImageGenerationError):
+    """Raised when prompt count is not exactly 5."""
+    
+    def __init__(self, count: int, expected: int = 5):
+        super().__init__(
+            message=f"Invalid image prompt count: {count}. Expected exactly {expected} prompts.",
+            code="INVALID_IMAGE_PROMPT_COUNT",
+            details={"count": count, "expected": expected}
+        )
+
+
+class NanoBananaAPIError(ImageGenerationError):
+    """Raised when Nano Banana API calls fail."""
+    
+    def __init__(self, reason: str, status_code: int | None = None, request_id: str | None = None):
+        super().__init__(
+            message=f"Nano Banana API error: {reason}",
+            code="NANO_BANANA_API_ERROR",
+            details={
+                "reason": reason,
+                "status_code": status_code,
+                "request_id": request_id
+            }
+        )
+
+
+class ImageProcessingError(ImageGenerationError):
+    """Raised when OpenCV processing fails."""
+    
+    def __init__(self, reason: str = "Image processing failed"):
+        super().__init__(
+            message=f"Image processing error: {reason}",
+            code="IMAGE_PROCESSING_ERROR",
+            details={"reason": reason}
+        )
