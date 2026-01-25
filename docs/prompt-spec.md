@@ -62,6 +62,7 @@ Task:
 
       - Each storyboard beat must output a standalone image prompt.
       - Produce exactly 5 image prompts total (Image_1 through Image_5).
+      - NOTE: The backend enforces exactly 5 prompts. If more than 5 are generated, only the first 5 are used. If fewer than 5 are generated, the request is retried.
 
       - Prompts should be clear, explicit, and optimized for an image generation model.
 

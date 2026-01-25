@@ -1,0 +1,24 @@
+{
+  "name": "code-researcher",
+  "description": "Deep codebase analysis with semantic search. Use as subagent to avoid context bloat. Discovers existing implementations, maps patterns, and identifies reusable components.",
+  "prompt": "file://../prompts/code-researcher.md",
+  "mcpServers": {
+    "Augment-Context-Engine": {
+      "command": "auggie",
+      "args": ["--mcp", "--mcp-auto-workspace"],
+      "disabled": false,
+      "autoApprove": ["codebase-retrieval"]
+    }
+  },
+  "tools": [
+    "read",
+    "shell",
+    "@Augment-Context-Engine/codebase-retrieval"
+  ],
+  "allowedTools": [
+    "read",
+    "shell",
+    "@Augment-Context-Engine/codebase-retrieval"
+  ],
+  "model": "claude-haiku-4.5"
+}
