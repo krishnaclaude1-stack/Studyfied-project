@@ -1,6 +1,9 @@
 /**
  * Lesson data store - Persistent lesson state
  * Reference: Zustand persist middleware documentation
+ * 
+ * Note: Assets (HTMLImageElement) are stored in IndexedDB via db.ts (not serializable to localStorage).
+ * Only lessonManifest and audioUrl are persisted to localStorage via partialize.
  */
 
 import { create } from 'zustand';

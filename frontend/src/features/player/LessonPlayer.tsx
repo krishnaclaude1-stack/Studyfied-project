@@ -3,7 +3,7 @@
  * Orchestrates asset loading and rendering
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useLessonStore } from '../../stores/lessonStore';
 import { usePlayerStore } from '../../stores/playerStore';
 import { preloadAssets } from '../../lib/assetLoader';
@@ -11,9 +11,11 @@ import { calculateCheckpoints } from '../../lib/checkpointCalculator';
 import { WhiteboardStage } from './WhiteboardStage';
 import { AudioPlayer } from './AudioPlayer';
 import { PlaybackControls } from './PlaybackControls';
+import { Transcript } from './Transcript';
 import type { Asset } from '../../types/lesson';
 
 export function LessonPlayer() {
+  const [isTranscriptVisible, setIsTranscriptVisible] = useState(false);
   const {
     lessonManifest,
     audioUrl,
@@ -92,7 +94,7 @@ export function LessonPlayer() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
           <p className="text-gray-600">Loading lesson...</p>
         </div>
       </div>
@@ -102,19 +104,19 @@ export function LessonPlayer() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="max-w-md p-6 bg-white border border-red-200 rounded-lg">
+        <div className="max-w-md p-6 bg-white border border-danger/20 rounded-lg">
           <div className="flex items-center mb-4">
             <svg
-              className="w-6 h-6 text-red-600 mr-2"
+              className="w-6 h-6 text-danger mr-2"
               fill="currentColor"
               viewBox="0 0 24 24"
               xmlns="http://www.w3.org/2000/svg"
             >
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
             </svg>
-            <h2 className="text-lg font-semibold text-red-900">Error Loading Lesson</h2>
+            <h2 className="text-lg font-semibold text-danger">Error Loading Lesson</h2>
           </div>
-          <p className="text-red-700">{error}</p>
+          <p className="text-danger/80">{error}</p>
         </div>
       </div>
     );
@@ -145,18 +147,43 @@ export function LessonPlayer() {
     );
   }
 
+  /**
+   * Set default transcript visibility based on screen size
+   */
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsTranscriptVisible(window.innerWidth >= 768); // Show on desktop by default
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
   return (
     <div className="lesson-player min-h-screen bg-gray-50 flex flex-col">
-      {/* Main canvas area */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        <WhiteboardStage />
+      {/* Main content area with canvas and transcript */}
+      <div className="flex-1 flex">
+        {/* Canvas area */}
+        <div className="flex-1 flex items-center justify-center p-4">
+          <WhiteboardStage />
+        </div>
+
+        {/* Transcript sidebar */}
+        <Transcript 
+          isVisible={isTranscriptVisible} 
+          onClose={() => setIsTranscriptVisible(false)} 
+        />
       </div>
 
       {/* Audio player (hidden) */}
       <AudioPlayer />
 
       {/* Playback controls */}
-      <PlaybackControls />
+      <PlaybackControls 
+        transcriptVisible={isTranscriptVisible}
+        onTranscriptToggle={() => setIsTranscriptVisible(!isTranscriptVisible)}
+      />
     </div>
   );
 }
