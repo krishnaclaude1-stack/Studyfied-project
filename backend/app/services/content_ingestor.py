@@ -173,6 +173,7 @@ class ContentIngestorService:
                 max_size_bytes=MAX_PDF_SIZE_BYTES
             )
         
+        doc = None
         try:
             # Open PDF from bytes
             doc = pymupdf.open(stream=file_bytes, filetype="pdf")
@@ -188,8 +189,6 @@ class ContentIngestorService:
                 if page_text:
                     text_parts.append(page_text)
             
-            doc.close()
-            
             if not text_parts:
                 raise PDFInvalidError(reason="PDF contains no extractable text")
             
@@ -202,6 +201,10 @@ class ContentIngestorService:
         except Exception as e:
             logger.error(f"Failed to extract content from PDF: {e}")
             raise PDFInvalidError(reason=f"Failed to parse PDF: {str(e)}")
+        finally:
+            # Ensure document is always closed to prevent resource leaks
+            if doc is not None:
+                doc.close()
     
     def validate_content(self, text: str) -> str:
         """
