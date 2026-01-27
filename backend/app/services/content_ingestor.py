@@ -124,8 +124,9 @@ class ContentIngestorService:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
             async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
-                # Use GET with stream to avoid downloading full content
-                # HEAD requests are often blocked by websites
+                # Use GET instead of HEAD since many websites block HEAD requests.
+                # aiohttp doesn't download the response body until explicitly read,
+                # so we just check the status and exit the context manager.
                 async with session.get(url, allow_redirects=True) as response:
                     if response.status in (401, 403):
                         raise URLNotAccessibleError(
@@ -137,7 +138,7 @@ class ContentIngestorService:
                             url=url,
                             reason=f"HTTP error {response.status}"
                         )
-                    # Don't read the body, just check status
+                    # Body is not read; aiohttp discards it when context exits
         except URLNotAccessibleError:
             raise
         except aiohttp.ClientError as e:
@@ -214,11 +215,11 @@ class ContentIngestorService:
             text: The extracted text content.
             
         Returns:
-            The validated text (potentially trimmed).
+            The validated text (with leading/trailing whitespace stripped).
             
         Raises:
             ContentTooShortError: If content is below minimum length.
-            ContentTooLongError: If content exceeds maximum length.
+            ContentTooLongError: If content exceeds maximum length (rejected, not truncated).
         """
         # Strip whitespace and check length
         text = text.strip()
