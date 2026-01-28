@@ -1,8 +1,15 @@
 """
 Content Ingestor Service
 
-Responsible for processing and ingesting raw educational content.
-This is a placeholder for the MVP implementation.
+Extracts text content from PDFs and URLs for analysis.
+
+Implementation Guide:
+- PDF extraction: PyMuPDF
+- URL extraction: Crawl4AI
+- Input validation: URL accessibility, PDF size <10MB
+- Output: Raw text for Librarian Agent
+- Related Ticket: T2 - AI Pipeline - Content Ingestion & Topic Extraction
+- Architecture: docs/architecture.md (Service Boundaries)
 """
 
 

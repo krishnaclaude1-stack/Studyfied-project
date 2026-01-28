@@ -1,13 +1,27 @@
 """
 Librarian Service
 
-Responsible for managing and organizing educational content resources.
-This is a placeholder for the MVP implementation.
+Analyzes source text and extracts teachable topics for video lessons.
+
+Implementation Guide:
+- Prompt Specification: docs/prompt-spec.md (lines 524-565)
+- Key Requirements:
+  - Variable topic count (1-5+ based on source density)
+  - Each topic must be convertible to 2-3 minute video
+  - Strict adherence to provided text only
+  - Output JSON schema defined in prompt spec
+- Related Ticket: T2 - AI Pipeline - Content Ingestion & Topic Extraction
 """
 
 
 class LibrarianService:
-    """Service for managing educational content library."""
+    """
+    Service for extracting topics from educational content.
+    
+    Uses Gemini 3 Flash Preview to analyze content and generate topic menu.
+    See docs/prompt-spec.md section "Language Model Prompt (Librarian Agent)"
+    for complete prompt specification and JSON schema.
+    """
     
     async def search_resources(self, query: str) -> list[dict]:
         """Search for educational resources."""

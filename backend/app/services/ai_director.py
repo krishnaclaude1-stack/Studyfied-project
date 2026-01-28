@@ -1,13 +1,29 @@
 """
 AI Director Service
 
-Responsible for orchestrating AI-powered lesson generation and flow.
-This is a placeholder for the MVP implementation.
+Orchestrates lesson generation with audio-visual synchronization.
+
+Implementation Guide:
+- Prompt Specification: docs/prompt-spec.md (lines 280-483)
+- Key Requirements:
+  - Maximum lesson duration: 180 seconds
+  - Khan Academy-style narration (friendly, conversational)
+  - Explain-as-you-draw narration (not before/after)
+  - Each narration block maps to a checkpoint for audio-visual sync
+  - Output strict JSON with scenes, voiceover, events, interactions
+- Related Ticket: T4 - AI Pipeline - Lesson Script Generation & Audio
 """
 
 
 class AIDirectorService:
-    """Service for directing AI-powered lesson generation."""
+    """
+    Service for directing AI-powered lesson generation.
+    
+    Uses Gemini 3 Flash Preview to generate lesson manifest with scenes,
+    checkpoints, visual events, and narration script.
+    See docs/prompt-spec.md section "Language Model Prompt (Lesson Director)"
+    for complete prompt specification and JSON schema.
+    """
     
     async def generate_lesson_plan(self, topic: str, options: dict) -> dict:
         """Generate a lesson plan for a given topic."""

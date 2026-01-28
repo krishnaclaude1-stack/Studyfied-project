@@ -1,8 +1,15 @@
 """
 Asset Factory Service
 
-Responsible for creating and managing visual assets for lessons.
-This is a placeholder for the MVP implementation.
+Generates transparent PNG assets from image prompts using Nano Banana Pro.
+
+Implementation Guide:
+- Uses Nano Banana Pro API (apifree.ai) for image generation
+- Applies OpenCV Smart Key for background removal
+- Preserves teal/orange accents while removing white background
+- Generates 5 images in parallel for performance
+- Related Ticket: T3 - AI Pipeline - Visual Asset Generation
+- Tech Plan: Canvas Rendering & AI Visual Pipeline (Refocused) (Section 1.3)
 """
 
 
