@@ -49,7 +49,8 @@ Task:
 
     Storyboard_the_explanation:
 
-      - Break the topic into up to 5 visual beats (scenes) suitable for ~3 minutes of explanation.
+      - Break the topic into exactly 5 visual beats (scenes) suitable for ~3 minutes of explanation.
+      - Every beat must correspond to one image prompt (no more, no fewer).
 
       - Decide whether each beat should be:
 
@@ -60,6 +61,7 @@ Task:
     Generate_IMAGE_PROMPTS_ONLY:
 
       - Each storyboard beat must output a standalone image prompt.
+      - Produce exactly 5 image prompts total (Image_1 through Image_5).
 
       - Prompts should be clear, explicit, and optimized for an image generation model.
 
@@ -73,7 +75,7 @@ Output_Format:
 
     Storyboard_Overview:
 
-      - Total_Images: X
+      - Total_Images: 5
 
       - Visual_Flow: brief 1–2 lines describing progression
 
@@ -94,6 +96,9 @@ Output_Format:
              <full image prompt here>"
 
       Image_2: "..."
+      Image_3: "..."
+      Image_4: "..."
+      Image_5: "..."
 
 
 
@@ -288,7 +293,7 @@ hard_constraints:
   - You do NOT output markdown
   - You do NOT output YAML
   - You ONLY output valid JSON
-  - Maximum lesson duration: 180 seconds
+  - Maximum lesson duration: 180 seconds (never exceed this limit)
   - Maximum number of scenes: 5
   - All scenes must be planned in a SINGLE response
 
@@ -322,6 +327,7 @@ core_responsibilities:
     - Tone: Friendly, conversational, enthusiastic, and "teacher-next-door"
     - Use connective phrases: "So, let's look at...", "Now typically...", "Notice how..."
     - Address the viewer directly ("You might wonder...", "Here we see...")
+    - Narrate while the drawing is happening (explain-as-you-draw, not before/after)
     - Each narration block must map to a checkpoint
     - Narration should be substantial (20-40 words per checkpoint) but sound spontaneous
 
@@ -458,6 +464,8 @@ validation_rules:
   - Every narration line must have a checkpointId
   - Scene count must not exceed 5
   - Total narration must reasonably fit within 180 seconds
+  - lessonDurationSec must be <= 180
+  - Each narration block must align with a visual event at the same checkpointId
   - At least one scene must include an interaction with type != "none"
 
 internal_thinking_mode:
@@ -522,11 +530,14 @@ critical_rules:
   1. STRICT ADHERENCE: Use ONLY the provided text. Do not add external knowledge or related topics.
   2. GRANULARITY: If the text is short (like a single paragraph), generate ONLY ONE topic.
   3. SCOPE: Each topic must be convertable into a 2-3 minute video.
+  4. VARIABLE TOPIC COUNT: Output 1-5 topics based on the length and density of the source. Only exceed 5 topics if the source is very long (full chapter+).
+  5. AVOID ARTIFICIAL FIXES: Do not force an exact number of topics; quality and coverage matter more than quantity.
 
 tasks:
   1. Analyze provided text.
-  2. Extract topics based on strict rules.
-  3. Output JSON menu.
+  2. Decide the number of topics that best fits the source (1-5 for most inputs).
+  3. Extract topics based on strict rules.
+  4. Output JSON menu.
 
 output_format_strict_json:
   schema_definition: |
@@ -552,5 +563,14 @@ output_format_strict_json:
       "required": ["topics"]
     }
 
+## Prompt Engineering Notes
+- Image Steering: enforced exactly 5 beats and clarified internal-structure-first visuals to drive explanatory sketchnotes.
+- Lesson Director: reinforced 180s max duration, explain-as-you-draw narration, and checkpoint alignment for audio-visual sync.
+- Librarian: removed fixed topic counts in favor of 1-5 topics based on source density to avoid artificial slicing.
 
+## Quality Baselines
+- Visuals: black-and-white sketchnote style with teal/orange accents, internal structure emphasized over icons.
+- Narration: Khan Academy-friendly tone, 20-40 words per checkpoint, aligned to visual events.
+- Lesson timing: lessonDurationSec <= 180 with up to 5 scenes.
+- Topic extraction: topics map to source text, 2-3 minute scope, 1-5 topics unless a full chapter warrants more.
 
