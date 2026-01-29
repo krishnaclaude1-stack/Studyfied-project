@@ -271,9 +271,11 @@ Generate exactly 5 image prompts following the rules. Output valid JSON only."""
                     raise ImagePromptGenerationError("Empty response from Gemini API")
 
                 try:
-                    result = json.loads(response.text)
+                    from app.services.json_utils import extract_json
+                    result = extract_json(response.text)
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse Gemini response as JSON: {e}")
+                    logger.error(f"Response content: {response.text[:500]}")
                     if retry_count < 1:
                         logger.info("Retrying request (attempt 2/2)...")
                         return await self.generate_image_prompts(topic_text, retry_count + 1, ai_config=ai_config)

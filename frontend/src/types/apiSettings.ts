@@ -1,6 +1,4 @@
-export type AIProvider = 'gemini' | 'openaiCompatible'
-
-export type ImageProvider = AIProvider | 'sjinn'
+export type AIProvider = 'gemini' | 'openaiCompatible' | 'sjinn'
 
 export interface GeminiProviderConfig {
   apiKey?: string
@@ -22,7 +20,7 @@ export interface SjinnConfig {
 }
 
 export interface AIProviderConfig {
-  provider: AIProvider | 'sjinn'
+  provider: AIProvider
   gemini?: GeminiProviderConfig
   openaiCompatible?: OpenAICompatibleProviderConfig
   sjinn?: SjinnConfig

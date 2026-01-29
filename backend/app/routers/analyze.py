@@ -252,8 +252,23 @@ async def analyze_pdf(
     parsed_ai_config: AIProviderConfig | None = None
     if ai_config:
         try:
-            parsed_ai_config = AIProviderConfig(**json.loads(ai_config))
-        except Exception:
-            parsed_ai_config = None
+            ai_config_dict = json.loads(ai_config)
+            parsed_ai_config = AIProviderConfig(**ai_config_dict)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse ai_config JSON: {e}")
+            return create_error_response(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                code="INVALID_AI_CONFIG_JSON",
+                message="ai_config must be valid JSON",
+                details={"error": str(e), "received": ai_config[:100]}
+            )
+        except ValidationError as e:
+            logger.warning(f"ai_config validation failed: {e}")
+            return create_error_response(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                code="INVALID_AI_CONFIG_SCHEMA",
+                message="ai_config does not match expected schema",
+                details={"errors": e.errors()}
+            )
 
     return await _process_and_extract_topics(raw_text, source_description, ai_config=parsed_ai_config)

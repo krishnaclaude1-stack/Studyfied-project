@@ -23,6 +23,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 interface ApiSettingsState {
   settings: ApiSettings
   isHydrating: boolean
+  isHydrated: boolean
   lastSavedAt: number | null
 
   hydrate: () => Promise<void>
@@ -35,10 +36,18 @@ interface ApiSettingsState {
 export const useApiSettingsStore = create<ApiSettingsState>()(
   subscribeWithSelector((set, get) => ({
     settings: DEFAULT_API_SETTINGS,
-    isHydrating: true,
+    isHydrating: false,
+    isHydrated: false,
     lastSavedAt: null,
 
     hydrate: async () => {
+      const { isHydrated, isHydrating } = get()
+      
+      // Prevent multiple simultaneous hydrations
+      if (isHydrated || isHydrating) {
+        return
+      }
+
       set({ isHydrating: true })
       try {
         const stored = (await withTimeout(
@@ -46,12 +55,14 @@ export const useApiSettingsStore = create<ApiSettingsState>()(
           INDEXEDDB_TIMEOUT_MS
         )) as ApiSettings | undefined
         if (stored) {
-          set({ settings: stored })
+          set({ settings: stored, isHydrated: true })
+        } else {
+          set({ isHydrated: true })
         }
       } catch (err) {
         console.error('Failed to hydrate API settings:', err)
         // Fall back to defaults on timeout or error
-        set({ settings: DEFAULT_API_SETTINGS })
+        set({ settings: DEFAULT_API_SETTINGS, isHydrated: true })
       } finally {
         set({ isHydrating: false })
       }
@@ -91,5 +102,15 @@ export const useApiSettingsStore = create<ApiSettingsState>()(
   }))
 )
 
-// Auto-hydrate once on first import
-void useApiSettingsStore.getState().hydrate()
+// Auto-hydrate in browser environment only (skip in tests/SSR)
+// Tests can manually call hydrate() when needed
+if (typeof window !== 'undefined' && typeof window.indexedDB !== 'undefined') {
+  // Use queueMicrotask to defer hydration until after module initialization
+  // This prevents race conditions during test setup
+  queueMicrotask(() => {
+    useApiSettingsStore.getState().hydrate().catch((err) => {
+      // Log but don't throw - app should work with defaults
+      console.warn('Auto-hydration failed, using default settings:', err)
+    })
+  })
+}
