@@ -65,9 +65,10 @@ class TTSService:
         return self._client
     
     async def synthesize_narration(
-        self, 
+        self,
         narration_segments: list[dict],
-        voice_id: str | None = None
+        voice_id: str | None = None,
+        elevenlabs_api_key: str | None = None,
     ) -> bytes:
         """
         Synthesize narration text to speech audio.
@@ -83,7 +84,17 @@ class TTSService:
             ElevenLabsAPIError: If API call fails.
             AudioGenerationError: If audio generation fails.
         """
-        client = self._get_client()
+        client = None
+        if elevenlabs_api_key:
+            try:
+                from elevenlabs.client import AsyncElevenLabs
+
+                client = AsyncElevenLabs(api_key=elevenlabs_api_key)
+            except ImportError:
+                logger.error("elevenlabs package not installed - install with: pip install elevenlabs")
+                client = None
+        else:
+            client = self._get_client()
         
         # Extract all narration text
         narration_texts = [segment.get("text", "") for segment in narration_segments]
@@ -104,11 +115,11 @@ class TTSService:
             logger.info(f"Generating TTS audio with ElevenLabs (voice: {voice_id}, {len(full_text)} chars)")
             
             # Call ElevenLabs API
-            audio_generator = await client.text_to_speech.convert(
+            audio_generator = client.text_to_speech.convert(
                 voice_id=voice_id,
                 text=full_text,
                 model_id="eleven_multilingual_v2",
-                output_format="mp3_44100_128"
+                output_format="mp3_44100_128",
             )
             
             # Collect audio chunks

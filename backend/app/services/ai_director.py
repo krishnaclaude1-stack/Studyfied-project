@@ -25,11 +25,13 @@ from pydantic import ValidationError
 
 from app.core.config import Settings, get_settings
 from app.schemas.lesson import LessonManifest
+from app.schemas.ai_provider import AIProvider, AIProviderConfig
+from app.services.openai_compatible_client import OpenAICompatibleAuth, openai_compatible_client
 from .exceptions import (
     InvalidAPIKeyError,
     LessonScriptGenerationError,
     InvalidLessonDurationError,
-    InvalidSceneCountError
+    InvalidSceneCountError,
 )
 
 logger = logging.getLogger(__name__)
@@ -243,10 +245,11 @@ class AIDirectorService:
         return self._client
     
     async def generate_lesson_manifest(
-        self, 
-        topic_text: str, 
+        self,
+        topic_text: str,
         asset_ids: list[str],
-        retry_count: int = 0
+        retry_count: int = 0,
+        ai_config: AIProviderConfig | None = None,
     ) -> dict[str, Any]:
         """
         Generate a lesson manifest for a given topic with associated assets.
@@ -265,8 +268,8 @@ class AIDirectorService:
             InvalidLessonDurationError: If duration exceeds 180 seconds.
             InvalidSceneCountError: If scene count exceeds 5.
         """
-        client = self._get_client()
-        
+        ai_config = ai_config or AIProviderConfig()
+
         # Construct the user prompt
         asset_list = ", ".join(asset_ids)
         user_prompt = f"""Analyze the following topic and create a lesson plan using the provided assets:
@@ -280,37 +283,75 @@ Available assets: {asset_list}
 Generate a complete lesson manifest following the rules and output valid JSON."""
 
         try:
-            # Call Gemini API with JSON response format
-            # Wrap synchronous call in asyncio.to_thread to avoid blocking the event loop
-            response = await asyncio.to_thread(
-                client.models.generate_content,
-                model=self._model_name,
-                contents=[
-                    types.Content(
-                        role="user",
-                        parts=[types.Part(text=AI_DIRECTOR_SYSTEM_PROMPT + "\n\n" + user_prompt)]
+            if ai_config.provider == AIProvider.OPENAI_COMPATIBLE:
+                if not ai_config.openai_compatible:
+                    raise LessonScriptGenerationError(
+                        "openaiCompatible config is required when provider=openaiCompatible"
                     )
-                ],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
+
+                content = await openai_compatible_client.chat_completions(
+                    auth=OpenAICompatibleAuth(
+                        base_url=str(ai_config.openai_compatible.base_url),
+                        api_key=ai_config.openai_compatible.api_key,
+                    ),
+                    model=ai_config.openai_compatible.model,
+                    messages=[
+                        {"role": "system", "content": AI_DIRECTOR_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
                     temperature=0.7,
-                    max_output_tokens=8192,
+                    max_tokens=8192,
+                    response_format="json_object",
                 )
-            )
-            
-            # Extract response text
-            if not response.text:
-                raise LessonScriptGenerationError("Empty response from Gemini API")
-            
-            # Parse JSON response
-            try:
-                result = json.loads(response.text)
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse Gemini response as JSON: {e}")
-                if retry_count < 1:
-                    logger.info("Retrying request (attempt 2/2)...")
-                    return await self.generate_lesson_manifest(topic_text, asset_ids, retry_count + 1)
-                raise LessonScriptGenerationError(f"Invalid JSON response: {e}")
+
+                try:
+                    from app.services.json_utils import extract_json
+                    result = extract_json(content)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse OpenAI-compatible response as JSON: {e}")
+                    logger.error(f"Response content: {content[:500]}")
+                    if retry_count < 1:
+                        logger.info("Retrying request (attempt 2/2)...")
+                        return await self.generate_lesson_manifest(
+                            topic_text, asset_ids, retry_count + 1, ai_config=ai_config
+                        )
+                    raise LessonScriptGenerationError(f"Invalid JSON response: {e}")
+            else:
+                client = self._get_client()
+                model_name = ai_config.resolve_gemini_model(self._model_name)
+                api_key = ai_config.resolve_gemini_api_key(self._settings.gemini_api_key)
+                if api_key != self._settings.gemini_api_key:
+                    client = genai.Client(api_key=api_key)
+
+                response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=model_name,
+                    contents=[
+                        types.Content(
+                            role="user",
+                            parts=[types.Part(text=AI_DIRECTOR_SYSTEM_PROMPT + "\n\n" + user_prompt)],
+                        )
+                    ],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.7,
+                        max_output_tokens=8192,
+                    ),
+                )
+
+                if not response.text:
+                    raise LessonScriptGenerationError("Empty response from Gemini API")
+
+                try:
+                    result = json.loads(response.text)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse Gemini response as JSON: {e}")
+                    if retry_count < 1:
+                        logger.info("Retrying request (attempt 2/2)...")
+                        return await self.generate_lesson_manifest(
+                            topic_text, asset_ids, retry_count + 1, ai_config=ai_config
+                        )
+                    raise LessonScriptGenerationError(f"Invalid JSON response: {e}")
             
             # Validate with Pydantic
             try:
@@ -341,7 +382,7 @@ Generate a complete lesson manifest following the rules and output valid JSON.""
                 logger.error(f"Pydantic validation failed: {e}")
                 if retry_count < 1:
                     logger.info("Retrying request due to validation failure (attempt 2/2)...")
-                    return await self.generate_lesson_manifest(topic_text, asset_ids, retry_count + 1)
+                    return await self.generate_lesson_manifest(topic_text, asset_ids, retry_count + 1, ai_config=ai_config)
                 raise LessonScriptGenerationError(f"Response validation failed: {e}")
                 
         except InvalidAPIKeyError:
@@ -349,7 +390,7 @@ Generate a complete lesson manifest following the rules and output valid JSON.""
         except (LessonScriptGenerationError, InvalidLessonDurationError, InvalidSceneCountError):
             raise
         except Exception as e:
-            logger.error(f"Gemini API error: {e}")
+            logger.error(f"LLM provider error: {e}")
             error_str = str(e).lower()
             if "api key" in error_str or "authentication" in error_str or "401" in error_str:
                 raise InvalidAPIKeyError()

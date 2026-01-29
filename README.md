@@ -106,6 +106,15 @@ Studyfied is a polyglot monorepo with:
 
 ## Quick Start
 
+### Configure AI Providers
+You can configure AI providers (Gemini official or any OpenAI-compatible endpoint), models, and API keys from the app UI:
+- Open the app
+- Go to **API Settings** (`/settings`)
+- Select provider + set base URL/model/API key per agent
+
+Server-side environment variables are still supported as defaults.
+
+
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
@@ -292,7 +301,6 @@ studyfied/
 | `ENVIRONMENT` | Runtime environment (development/production) | No |
 | `CORS_ORIGINS` | Allowed CORS origins (comma-separated) | No |
 | `GEMINI_API_KEY` | Google Gemini API key for AI features | Yes* |
-| `NANO_BANANA_API_KEY` | Nano Banana API key for image generation | Yes* |
 | `ELEVENLABS_API_KEY` | ElevenLabs API key for TTS | No |
 
 *Required for full AI functionality

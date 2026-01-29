@@ -211,7 +211,7 @@ studyfied/
 -   **Content Ingestion (Step 0):** Input -> `Crawl4AI`/`PyMuPDF` -> Raw Text.
 -   **Librarian (Step 0.5):** Raw Text -> `TopicMenu` (JSON). User selects Topic.
 -   **ImageSteering (Step 1):** Selected Topic -> Image Prompts (4 Specific + 1 Grid). Style enforced via prompt.
--   **AssetFactory (Step 2):** Image Prompts -> **Nano Banana Pro** (via `apifree.ai`) -> **Parallel Generation** -> **OpenCV Smart Key** -> Transparent PNGs.
+-   **AssetFactory (Step 2):** Image Prompts -> **Gemini Images OR OpenAI-compatible Images API** -> **Parallel Generation** -> **OpenCV Smart Key** -> Transparent PNGs.
     -   *Strategy:* Use HSV to keep Teal/Orange accents while removing white background (Smart Key). No SVGs.
 -   **AiDirector (Step 3):** Selected Topic + Transparent PNG Assets -> Educational Script (Narrator lines + Visual Placement/Timing).
 -   **AnimationEngine (Step 4):** Visual Plan -> Konva Node Definitions.

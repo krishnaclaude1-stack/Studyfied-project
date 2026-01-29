@@ -1,14 +1,14 @@
 """
 Asset Factory Service
 
-Generates transparent PNG assets from image prompts using Nano Banana Pro.
+Generates transparent PNG assets from image prompts.
 
 Implementation Guide:
-- Uses Nano Banana Pro API (apifree.ai) for image generation
+- Uses either official Gemini image generation or an OpenAI-compatible Images API
 - Applies OpenCV Smart Key for background removal
 - Preserves teal/orange accents while removing white background
 - Generates 5 images in parallel for performance
-- Related Ticket: T3 - AI Pipeline - Visual Asset Generation
+- Related Ticket: T3 - AI Pipeline - Visual Asset Generation (updated for provider-agnostic image generation)
 - Tech Plan: Canvas Rendering & AI Visual Pipeline (Refocused) (Section 1.3)
 """
 
@@ -16,45 +16,41 @@ import asyncio
 import logging
 from typing import Any
 
-import aiohttp
 import cv2
 import numpy as np
+from google import genai
+from google.genai import types
 
 from app.core.config import Settings, get_settings
+from app.schemas.ai_provider import AIProvider, AIProviderConfig
+from app.services.openai_compatible_client import OpenAICompatibleAuth, openai_compatible_client
+from app.services.gemini_rest_client import GeminiRestAuth, gemini_rest_client
+from app.services.sjinn_tool_client import SjinnAuth, sjinn_tool_client
 from .exceptions import (
-    NanoBananaAPIError,
     ImageProcessingError,
+    ImageGenerationError,
+    InvalidAPIKeyError,
 )
 
 logger = logging.getLogger(__name__)
 
-# Nano Banana API configuration
-NANO_BANANA_BASE_URL = "https://api.apifree.ai"
-NANO_BANANA_MODEL = "google/nano-banana-pro"
+# Image generation defaults
+# Default image model (can be overridden per-request via AIProviderConfig.gemini.model)
+DEFAULT_GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview"
+DEFAULT_OPENAI_IMAGE_SIZE = "1024x1024"
 DEFAULT_ASPECT_RATIO = "16:9"
-DEFAULT_RESOLUTION = "2K"
-
-# Polling configuration - targeting ~2 minute ceiling per image
-# With 2s initial interval and 1.2x backoff capped at 5s, 30 attempts ≈ 2 minutes
-POLL_INITIAL_INTERVAL = 2  # seconds
-POLL_MAX_ATTEMPTS = 30  # ~2 minutes max with backoff
-POLL_BACKOFF_MULTIPLIER = 1.2  # Gentle exponential backoff
-POLL_MAX_INTERVAL = 5  # Max interval between polls (seconds)
-
-# HTTP client timeouts (seconds)
-HTTP_TOTAL_TIMEOUT = 60  # Total timeout for any single HTTP request
-HTTP_CONNECT_TIMEOUT = 10  # Timeout for establishing connection
-HTTP_READ_TIMEOUT = 30  # Timeout for reading response
 
 
 class AssetFactoryService:
+    """Generate transparent PNG assets from image prompts.
+
+    Image generation provider is selected per-request via `AIProviderConfig`:
+    - Official Gemini image generation (google-genai)
+    - OpenAI-compatible Images API
+
+    Output bytes are then processed with OpenCV HSV Smart Key to remove white background.
     """
-    Service for generating transparent PNG assets from image prompts.
-    
-    Uses Nano Banana Pro API for image generation and OpenCV for
-    background removal with HSV Smart Key processing.
-    """
-    
+
     def __init__(self, settings: Settings | None = None):
         """
         Initialize the Asset Factory service.
@@ -63,48 +59,20 @@ class AssetFactoryService:
             settings: Application settings. If None, loads from environment.
         """
         self._settings = settings or get_settings()
-        self._session: aiohttp.ClientSession | None = None
+        self._gemini_client: genai.Client | None = None
     
-    def _get_headers(self) -> dict[str, str]:
-        """
-        Get HTTP headers for Nano Banana API requests.
-        
-        Returns:
-            Dictionary of headers including authorization.
-            
-        Raises:
-            NanoBananaAPIError: If API key is not configured.
-        """
-        if not self._settings.nano_banana_api_key:
-            raise NanoBananaAPIError("Nano Banana API key is not configured")
-        
-        return {
-            "Authorization": f"Bearer {self._settings.nano_banana_api_key}",
-            "Content-Type": "application/json"
-        }
+    def _get_gemini_client(self, api_key: str) -> genai.Client:
+        if not api_key:
+            raise InvalidAPIKeyError()
+        if self._gemini_client is None:
+            self._gemini_client = genai.Client(api_key=api_key)
+        return self._gemini_client
     
-    async def _get_session(self) -> aiohttp.ClientSession:
-        """
-        Get or create the aiohttp session with configured timeouts.
-        
-        Returns:
-            Active aiohttp ClientSession with timeout configuration.
-        """
-        if self._session is None or self._session.closed:
-            timeout = aiohttp.ClientTimeout(
-                total=HTTP_TOTAL_TIMEOUT,
-                connect=HTTP_CONNECT_TIMEOUT,
-                sock_read=HTTP_READ_TIMEOUT
-            )
-            self._session = aiohttp.ClientSession(timeout=timeout)
-        return self._session
-    
-    async def close(self) -> None:
-        """Close the aiohttp session."""
-        if self._session and not self._session.closed:
-            await self._session.close()
-    
-    async def generate_assets(self, image_prompts: list[str]) -> list[bytes]:
+    async def generate_assets(
+        self,
+        image_prompts: list[str],
+        ai_config: AIProviderConfig | None = None,
+    ) -> list[bytes]:
         """
         Generate transparent PNG assets from image prompts in parallel.
         
@@ -115,14 +83,16 @@ class AssetFactoryService:
             List of transparent PNG bytes, one per prompt.
             
         Raises:
-            NanoBananaAPIError: If API calls fail.
+            ImageGenerationError: If image generation fails.
             ImageProcessingError: If image processing fails.
         """
+        ai_config = ai_config or AIProviderConfig()
+
         logger.info(f"Starting parallel generation of {len(image_prompts)} assets")
-        
+
         # Generate all images in parallel
         tasks = [
-            self._generate_single_asset(prompt, index)
+            self._generate_single_asset(prompt, index, ai_config)
             for index, prompt in enumerate(image_prompts)
         ]
         
@@ -139,7 +109,7 @@ class AssetFactoryService:
         logger.info(f"Successfully generated {len(processed_results)} assets")
         return processed_results
     
-    async def _generate_single_asset(self, prompt: str, index: int) -> bytes:
+    async def _generate_single_asset(self, prompt: str, index: int, ai_config: AIProviderConfig) -> bytes:
         """
         Generate a single transparent PNG asset from a prompt.
         
@@ -151,188 +121,208 @@ class AssetFactoryService:
             Transparent PNG bytes.
             
         Raises:
-            NanoBananaAPIError: If API call fails.
+            ImageGenerationError: If image generation fails.
             ImageProcessingError: If processing fails.
         """
-        logger.info(f"Generating asset {index}: submitting to Nano Banana API")
-        
-        # Step 1: Submit request to Nano Banana API
-        request_id = await self._submit_image_request(prompt)
-        logger.info(f"Asset {index}: received request_id={request_id}")
-        
-        # Step 2: Poll for completion
-        image_url = await self._poll_for_result(request_id, index)
-        logger.info(f"Asset {index}: image ready at {image_url[:50]}...")
-        
-        # Step 3: Download the image
-        image_bytes = await self._download_image(image_url)
-        logger.info(f"Asset {index}: downloaded {len(image_bytes)} bytes")
-        
-        # Step 4: Process with OpenCV Smart Key
+        logger.info(f"Generating asset {index}: generating image bytes")
+
+        image_bytes = await self._generate_image_bytes(prompt, ai_config=ai_config)
+        logger.info(f"Asset {index}: generated {len(image_bytes)} bytes")
+
+        # Process with OpenCV Smart Key
         transparent_png = self._process_image_with_smart_key(image_bytes, index)
         logger.info(f"Asset {index}: processed to transparent PNG ({len(transparent_png)} bytes)")
-        
+
         return transparent_png
     
-    async def _submit_image_request(self, prompt: str) -> str:
-        """
-        Submit an image generation request to Nano Banana API.
-        
-        Args:
-            prompt: The image generation prompt.
-            
-        Returns:
-            The request_id for polling.
-            
-        Raises:
-            NanoBananaAPIError: If submission fails.
-        """
-        session = await self._get_session()
-        headers = self._get_headers()
-        
-        payload = {
-            "model": NANO_BANANA_MODEL,
-            "prompt": prompt,
-            "aspect_ratio": DEFAULT_ASPECT_RATIO,
-            "resolution": DEFAULT_RESOLUTION
-        }
-        
-        url = f"{NANO_BANANA_BASE_URL}/v1/image/submit"
-        
+    async def _generate_image_bytes(self, prompt: str, *, ai_config: AIProviderConfig) -> bytes:
+        """Generate raw image bytes (PNG/JPG) from a prompt using the selected provider."""
+
         try:
-            async with session.post(url, headers=headers, json=payload) as response:
-                if response.status != 200:
-                    text = await response.text()
-                    raise NanoBananaAPIError(
-                        f"Submit request failed with status {response.status}: {text}",
-                        status_code=response.status
+            if ai_config.provider == AIProvider.SJINN:
+                if not ai_config.sjinn:
+                    raise ImageGenerationError(
+                        message="sjinn config is required when provider=sjinn",
+                        code="IMAGE_PROVIDER_CONFIG_MISSING",
+                        details={},
                     )
+
+                auth = SjinnAuth(
+                    base_url=str(ai_config.sjinn.base_url),
+                    api_key=ai_config.sjinn.api_key,
+                )
+
+                # Only Pro model supports resolution parameter
+                is_pro_model = ai_config.sjinn.model == "nano-banana-image-pro-api"
                 
-                data = await response.json()
-                
-                if data.get("code") != 200:
-                    raise NanoBananaAPIError(
-                        f"API error: {data.get('code_msg', 'Unknown error')}",
-                        status_code=data.get("code")
+                task_id = await sjinn_tool_client.create_nano_banana_task(
+                    auth=auth,
+                    prompt=prompt,
+                    tool_type=ai_config.sjinn.model,  # Use model from config
+                    aspect_ratio=(ai_config.image_aspect_ratio or "auto"),
+                    resolution=(ai_config.image_size or "1K") if is_pro_model else None,
+                    image_list=[str(u) for u in ai_config.sjinn.image_list],
+                )
+                output_urls = await sjinn_tool_client.poll_task_output_urls(auth=auth, task_id=task_id)
+                # SJinn returns output_urls (strings). Download first.
+                return await sjinn_tool_client.download_bytes(auth=auth, url=output_urls[0])
+
+            if ai_config.provider == AIProvider.OPENAI_COMPATIBLE:
+                if not ai_config.openai_compatible:
+                    raise ImageGenerationError(
+                        message="openaiCompatible config is required when provider=openaiCompatible",
+                        code="IMAGE_PROVIDER_CONFIG_MISSING",
+                        details={},
                     )
-                
-                request_id = data.get("resp_data", {}).get("request_id")
-                if not request_id:
-                    raise NanoBananaAPIError("No request_id in response")
-                
-                return request_id
-                
-        except asyncio.TimeoutError:
-            raise NanoBananaAPIError("Request timeout during submit")
-        except aiohttp.ClientError as e:
-            raise NanoBananaAPIError(f"Network error during submit: {e}")
-    
-    async def _poll_for_result(self, request_id: str, index: int) -> str:
-        """
-        Poll for image generation completion.
-        
-        Args:
-            request_id: The request ID to poll.
-            index: Asset index (for logging).
-            
-        Returns:
-            The URL of the generated image.
-            
-        Raises:
-            NanoBananaAPIError: If polling fails or times out.
-        """
-        session = await self._get_session()
-        headers = self._get_headers()
-        url = f"{NANO_BANANA_BASE_URL}/v1/image/{request_id}/result"
-        
-        interval = POLL_INITIAL_INTERVAL
-        
-        for attempt in range(POLL_MAX_ATTEMPTS):
+
+                auth = OpenAICompatibleAuth(
+                    base_url=str(ai_config.openai_compatible.base_url),
+                    api_key=ai_config.openai_compatible.api_key,
+                )
+
+                # 1) Try the standard OpenAI Images API first
+                try:
+                    data = await openai_compatible_client.images_generations(
+                        auth=auth,
+                        model=ai_config.openai_compatible.model,
+                        prompt=prompt,
+                        size=(ai_config.image_size or DEFAULT_OPENAI_IMAGE_SIZE),
+                        response_format="b64_json",
+                        aspect_ratio=ai_config.image_aspect_ratio,
+                    )
+
+                    images = data.get("data") or []
+                    if not images:
+                        raise ImageGenerationError(
+                            message="OpenAI-compatible image response missing data",
+                            code="IMAGE_GENERATION_FAILED",
+                            details={},
+                        )
+                    b64 = images[0].get("b64_json")
+                    if not b64:
+                        raise ImageGenerationError(
+                            message="OpenAI-compatible image response missing b64_json",
+                            code="IMAGE_GENERATION_FAILED",
+                            details={},
+                        )
+
+                    import base64
+
+                    return base64.b64decode(b64)
+                except Exception as e:
+                    # 2) Fallback: some OpenAI-compatible vendors implement image generation via
+                    # /chat/completions with a multimodal response containing message.images[].
+                    msg = str(e)
+                    if "images error 404" not in msg and "404 page not found" not in msg:
+                        raise
+
+                # Chat-completions image generation fallback
+                image_prompt = prompt
+                if ai_config.image_aspect_ratio:
+                    image_prompt += f"\n\naspect_ratio: {ai_config.image_aspect_ratio}"
+                if ai_config.image_size:
+                    image_prompt += f"\nsize: {ai_config.image_size}"
+
+                message = await openai_compatible_client.chat_completions_message(
+                    auth=auth,
+                    model=ai_config.openai_compatible.model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": (
+                                        "Generate an image for the following prompt. "
+                                        "Return the result as an image in the response.\n\n" + image_prompt
+                                    ),
+                                }
+                            ],
+                        }
+                    ],
+                    temperature=0.7,
+                    max_tokens=2048,
+                    response_format="text",
+                )
+
+                images = message.get("images") or []
+                if not images:
+                    raise ImageGenerationError(
+                        message="OpenAI-compatible chat image response missing message.images",
+                        code="IMAGE_GENERATION_FAILED",
+                        details={"message": message},
+                    )
+
+                image_url = (images[0].get("image_url") or {}).get("url")
+                if not image_url or not image_url.startswith("data:image/"):
+                    raise ImageGenerationError(
+                        message="OpenAI-compatible chat image response missing data:image URL",
+                        code="IMAGE_GENERATION_FAILED",
+                        details={"images": images[:1]},
+                    )
+
+                import base64
+
+                b64_part = image_url.split(",", 1)[1]
+                return base64.b64decode(b64_part)
+
+            # Official Gemini image generation
+            # Use generateContent with imageConfig (per Google docs) instead of models.generate_images,
+            # because many Gemini image models (e.g., gemini-3-pro-image-preview) are exposed via
+            # :generateContent and not supported for predict/generate_images.
+            api_key = ai_config.resolve_gemini_api_key(self._settings.gemini_api_key)
+            model_name = ai_config.resolve_gemini_model(DEFAULT_GEMINI_IMAGE_MODEL)
+            if not model_name:
+                raise ImageGenerationError(
+                    message="Gemini image model name is required (configure it in /settings)",
+                    code="IMAGE_PROVIDER_CONFIG_MISSING",
+                    details={},
+                )
+            client = self._get_gemini_client(api_key)
+
+            generation_config: dict[str, Any] = {}
+            image_config: dict[str, Any] = {}
+            if ai_config.image_aspect_ratio:
+                # Docs use camelCase: aspectRatio
+                image_config["aspectRatio"] = ai_config.image_aspect_ratio
+            if ai_config.image_size:
+                # Docs use camelCase: imageSize (e.g., "2K", "4K")
+                image_config["imageSize"] = ai_config.image_size
+            if image_config:
+                generation_config["imageConfig"] = image_config
+
+            # Use REST for `:generateContent` + `generationConfig.imageConfig` (per docs).
+            image_config: dict[str, Any] = {}
+            if ai_config.image_aspect_ratio:
+                image_config["aspectRatio"] = ai_config.image_aspect_ratio
+            if ai_config.image_size:
+                image_config["imageSize"] = ai_config.image_size
+
             try:
-                async with session.get(url, headers=headers) as response:
-                    if response.status != 200:
-                        text = await response.text()
-                        raise NanoBananaAPIError(
-                            f"Poll request failed with status {response.status}: {text}",
-                            status_code=response.status,
-                            request_id=request_id
-                        )
-                    
-                    data = await response.json()
-                    
-                    if data.get("code") != 200:
-                        raise NanoBananaAPIError(
-                            f"API error: {data.get('code_msg', 'Unknown error')}",
-                            status_code=data.get("code"),
-                            request_id=request_id
-                        )
-                    
-                    resp_data = data.get("resp_data", {})
-                    status = resp_data.get("status", "")
-                    
-                    if status == "success":
-                        image_list = resp_data.get("image_list", [])
-                        if not image_list:
-                            raise NanoBananaAPIError(
-                                "No images in response",
-                                request_id=request_id
-                            )
-                        return image_list[0]
-                    
-                    elif status in ("error", "failed"):
-                        error_msg = resp_data.get("error", "Unknown error")
-                        raise NanoBananaAPIError(
-                            f"Image generation failed: {error_msg}",
-                            request_id=request_id
-                        )
-                    
-                    elif status in ("processing", "queuing"):
-                        logger.debug(f"Asset {index}: status={status}, attempt {attempt + 1}/{POLL_MAX_ATTEMPTS}")
-                    
-                    else:
-                        logger.warning(f"Asset {index}: unknown status '{status}'")
-                
-            except asyncio.TimeoutError:
-                logger.warning(f"Asset {index}: request timeout during poll attempt {attempt + 1}")
-            except aiohttp.ClientError as e:
-                logger.warning(f"Asset {index}: network error during poll: {e}")
-            
-            # Wait before next poll with exponential backoff
-            await asyncio.sleep(interval)
-            interval = min(interval * POLL_BACKOFF_MULTIPLIER, POLL_MAX_INTERVAL)
-        
-        raise NanoBananaAPIError(
-            f"Timeout waiting for image generation after {POLL_MAX_ATTEMPTS} attempts (~2 minutes)",
-            request_id=request_id
-        )
-    
-    async def _download_image(self, url: str) -> bytes:
-        """
-        Download an image from URL.
-        
-        Args:
-            url: The image URL.
-            
-        Returns:
-            Image bytes.
-            
-        Raises:
-            NanoBananaAPIError: If download fails.
-        """
-        session = await self._get_session()
-        
-        try:
-            async with session.get(url) as response:
-                if response.status != 200:
-                    raise NanoBananaAPIError(
-                        f"Image download failed with status {response.status}"
-                    )
-                return await response.read()
-                
-        except asyncio.TimeoutError:
-            raise NanoBananaAPIError("Request timeout during image download")
-        except aiohttp.ClientError as e:
-            raise NanoBananaAPIError(f"Network error during image download: {e}")
+                return await gemini_rest_client.generate_image_bytes(
+                    auth=GeminiRestAuth(api_key=api_key),
+                    model=model_name,
+                    prompt=prompt,
+                    image_config=(image_config or None),
+                )
+            except Exception as e:
+                raise ImageGenerationError(
+                    message=f"Gemini image generation failed: {e}",
+                    code="IMAGE_GENERATION_FAILED",
+                    details={"model": model_name},
+                )
+
+        except InvalidAPIKeyError:
+            raise
+        except Exception as e:
+            msg = str(e).lower()
+            if "api key" in msg or "authentication" in msg or "401" in msg:
+                raise InvalidAPIKeyError()
+            raise ImageGenerationError(
+                message=f"Image generation failed: {e}",
+                code="IMAGE_GENERATION_FAILED",
+                details={},
+            )
     
     def _process_image_with_smart_key(self, image_bytes: bytes, index: int) -> bytes:
         """

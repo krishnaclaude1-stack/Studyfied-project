@@ -140,7 +140,7 @@ Asset Factory Service
 Generates transparent PNG assets from image prompts using Nano Banana Pro.
 
 Implementation Guide:
-- Uses Nano Banana Pro API (apifree.ai) for image generation
+- Uses Gemini Images or an OpenAI-compatible Images API for image generation
 - Applies OpenCV Smart Key for background removal
 - Preserves teal/orange accents while removing white background
 - Generates 5 images in parallel for performance

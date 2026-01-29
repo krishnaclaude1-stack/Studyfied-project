@@ -30,7 +30,7 @@ Studyfied is a **Generative AI Web Application for EdTech** that transforms stat
   - **PDFs**: PyMuPDF (fitz) for fast text extraction
 - **AI Services**:
   - **LLM**: Google Gemini 3 Flash Preview
-  - **Image Generation**: Nano Banana Pro (via apifree.ai)
+  - **Image Generation**: Provider-selectable (Gemini Images or OpenAI-compatible Images API)
   - **Text-to-Speech**: ElevenLabs (production) / Browser TTS (dev)
 - **Server Port**: 8000 with auto-reload in development
 
@@ -192,7 +192,6 @@ All errors follow this structure:
    cp .env.example .env
    # Edit .env and add your API keys (no quotes):
    # GEMINI_API_KEY=your_key_here
-   # NANO_BANANA_API_KEY=your_key_here
    # ELEVENLABS_API_KEY=your_key_here
    ```
 
@@ -367,7 +366,7 @@ Custom exceptions in `backend/app/services/exceptions.py`:
 - `ImageGenerationError` (base)
   - `ImagePromptGenerationError` (Gemini prompt generation failed)
   - `InvalidImagePromptCountError` (not exactly 5 prompts)
-  - `NanoBananaAPIError` (image generation API errors)
+  - `ImageGenerationError` (image generation API errors)
   - `ImageProcessingError` (OpenCV processing failures)
 - `LessonGenerationError` (base)
   - `LessonScriptGenerationError` (Gemini lesson generation failed)
@@ -542,7 +541,7 @@ Custom exceptions in `backend/app/services/exceptions.py`:
 1. **Check logs**: `docker-compose logs -f backend`
 2. **API Docs**: Open http://localhost:8000/docs for interactive Swagger UI
 3. **Test endpoints**: Use curl or Postman to test individual endpoints
-4. **Environment variables**: Verify .env file has all required API keys (GEMINI_API_KEY, NANO_BANANA_API_KEY, ELEVENLABS_API_KEY)
+4. **Environment variables**: Verify `.env` has required API keys (e.g., `GEMINI_API_KEY`, `ELEVENLABS_API_KEY`) or configure keys in the UI settings page (`/settings`).
 5. **Python errors**: Full traceback appears in logs with async context
 6. **Health check**: Verify `/api/health` returns `{"status": "ok"}` before debugging other endpoints
 7. **Pydantic validation errors**: Check if LLM output matches expected schema in `backend/app/schemas/`

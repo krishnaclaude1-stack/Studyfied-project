@@ -56,6 +56,13 @@ export function Navbar() {
 
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-4">
+          <Link
+            to="/settings"
+            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-text-muted dark:text-text-muted-dark transition-colors"
+            aria-label="API Settings"
+          >
+            <Icon name="settings" />
+          </Link>
           <ThemeToggle />
           <Link to="/select-source" className="btn-primary py-2 px-5 text-sm">
             Try Guest Mode
@@ -85,6 +92,14 @@ export function Navbar() {
             onClick={() => setMobileMenuOpen(false)}
           >
             Try Guest Mode
+          </Link>
+          <Link
+            to="/settings"
+            className="inline-flex items-center gap-2 text-text-main dark:text-white"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <Icon name="settings" />
+            API Settings
           </Link>
           {navLinks.map((link) => (
             <a

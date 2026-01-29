@@ -1,12 +1,14 @@
-import { useMutation } from '@tanstack/react-query'
-import { generateLesson, APIError } from '../lib/api'
+import { useMutation, UseMutationOptions } from '@tanstack/react-query'
+import { generateLesson, APIError, GenerateLessonResponse } from '../lib/api'
 
-export function useGenerateLesson() {
+type UseGenerateLessonOptions = Omit<UseMutationOptions<GenerateLessonResponse, APIError, string>, 'mutationFn'>
+
+export function useGenerateLesson(options?: UseGenerateLessonOptions) {
   return useMutation({
     mutationFn: generateLesson,
     onError: (error: APIError) => {
       console.error('Lesson generation failed:', error)
-      // Error is handled by the component
     },
+    ...options,
   })
 }

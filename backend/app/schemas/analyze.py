@@ -8,13 +8,18 @@ from typing import Optional
 from pydantic import Field, HttpUrl
 
 from . import CamelCaseModel
+from .ai_provider import AIProviderConfig
 
 
 # Request Models
 class AnalyzeUrlRequest(CamelCaseModel):
     """Request model for URL-based content analysis."""
-    
+
     url: HttpUrl = Field(..., description="URL of the content to analyze")
+    ai_config: AIProviderConfig | None = Field(
+        default=None,
+        description="Optional AI provider configuration for the Librarian agent",
+    )
 
 
 # Response Models

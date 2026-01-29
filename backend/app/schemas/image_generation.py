@@ -34,37 +34,7 @@ class ImageSteeringResponse(CamelCaseModel):
     )
 
 
-class NanoBananaSubmitRequest(CamelCaseModel):
-    """Request payload for Nano Banana submit endpoint."""
-    
-    model: str = Field(default="google/nano-banana-pro", description="Model to use")
-    prompt: str = Field(..., description="Image generation prompt")
-    aspect_ratio: str = Field(default="1:1", description="Image aspect ratio")
-    resolution: str = Field(default="1K", description="Image resolution (1K, 2K, 4K)")
-
-
-class NanoBananaSubmitResponse(CamelCaseModel):
-    """Response from Nano Banana submit endpoint."""
-    
-    request_id: str = Field(..., description="Request ID for polling")
-
-
-class NanoBananaRespData(CamelCaseModel):
-    """Response data from Nano Banana API."""
-    
-    request_id: str = Field(..., description="Request identifier")
-    status: str = Field(..., description="Request status (queuing, processing, success, error, failed)")
-    image_list: list[str] = Field(default_factory=list, description="List of generated image URLs")
-    error: str | None = Field(default=None, description="Error message if failed")
-
-
-class NanoBananaResultResponse(CamelCaseModel):
-    """Response from Nano Banana result endpoint."""
-    
-    code: int = Field(..., description="HTTP status code")
-    code_msg: str = Field(..., description="Status message")
-    resp_data: NanoBananaRespData = Field(..., description="Response data")
-
+# Nano Banana schemas removed (legacy).
 
 class ProcessedAsset(CamelCaseModel):
     """A single processed PNG asset."""

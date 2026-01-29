@@ -38,7 +38,7 @@ Establish the foundational project structure with a polyglot monorepo architectu
 - [x] `docker-compose.yml` defines frontend and backend services with proper networking
 - [x] Backend Dockerfile uses Python 3.11+ with Uvicorn server
 - [x] Frontend Dockerfile uses Node.js with Nginx multi-stage build
-- [x] `.env.example` template includes placeholders for `GEMINI_API_KEY`, `NANO_BANANA_API_KEY`, `ELEVENLABS_API_KEY`
+- [x] `.env.example` template includes placeholders for `GEMINI_API_KEY` and `ELEVENLABS_API_KEY` (image generation is configured at runtime via `/settings`).
 - [x] FastAPI app includes CORS middleware configured via environment variable
 - [x] Vite config includes proxy rule: `/api` → `http://backend:8000`
 - [x] Health check endpoint returns `{ "status": "ok", "timestamp": "..." }`
@@ -210,7 +210,7 @@ volumes:
 
 **Environment Variables Validated:**
 - `GEMINI_API_KEY` - Placeholder in `.env.example`, validated in T2
-- `NANO_BANANA_API_KEY` - Placeholder in `.env.example`, validated in T3
+- (Removed) Nano Banana key is no longer used
 - `ELEVENLABS_API_KEY` - Placeholder in `.env.example`, validated in T4
 - `CORS_ORIGINS` - Defaults to `http://localhost:5173`, tested with multiple origins
 

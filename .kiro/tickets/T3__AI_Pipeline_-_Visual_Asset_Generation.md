@@ -6,7 +6,7 @@ Implement Image Steering Agent and Asset Factory to generate high-quality transp
 
 **In Scope:**
 - Image Steering Agent (Gemini 3 Flash Preview) - generates 5 image prompts
-- Asset Factory service - generates images via Nano Banana Pro (apifree.ai)
+- Asset Factory service - generates images via Gemini Images or OpenAI-compatible Images API
 - OpenCV Smart Key processing (background removal, preserve accents)
 - Parallel image generation (5 images simultaneously)
 - Constraint enforcement (slice to first 5 prompts)
@@ -97,14 +97,14 @@ Implement Image Steering Agent and Asset Factory to generate high-quality transp
 **2. Nano Banana Pro API Integration** (lines 181-339)
 
 **Submit Phase** (lines 181-233):
-- Endpoint: `POST https://api.apifree.ai/v1/image/submit`
+- Endpoint: OpenAI-compatible `POST {baseUrl}/images/generations` or Gemini Images API (SDK)
 - Model: `google/nano-banana-pro`
 - Aspect ratio: 1:1
 - Resolution: 1K
 - Returns: `request_id` for polling
 
 **Poll Phase** (lines 234-311):
-- Endpoint: `GET https://api.apifree.ai/v1/image/{request_id}/result`
+- Endpoint: (Removed) polling-based vendor endpoint no longer used
 - Strategy: Exponential backoff polling
   - Initial interval: 2 seconds
   - Backoff multiplier: 1.2x
@@ -169,7 +169,7 @@ Implement Image Steering Agent and Asset Factory to generate high-quality transp
 **Base:** `ImageGenerationError`
 - `ImagePromptGenerationError` - Gemini generation failed
 - `InvalidImagePromptCountError` - Not exactly 5 prompts after retry
-- `NanoBananaAPIError` - API call failed (includes request_id for debugging)
+- `ImageGenerationError` - Image API call failed
 - `ImageProcessingError` - OpenCV processing failed
 
 **Error Response Format:**
@@ -191,10 +191,10 @@ Implement Image Steering Agent and Asset Factory to generate high-quality transp
 
 **Environment Variables** (file:backend/app/core/config.py):
 - `GEMINI_API_KEY` - For Image Steering Service
-- `NANO_BANANA_API_KEY` - For Asset Factory Service
+- (Removed) Nano Banana key no longer used; image generation configured per-request
 
 **API Constants** (file:backend/app/services/asset_factory.py:31-47):
-- Base URL: `https://api.apifree.ai`
+- Base URL: provider-selectable (Gemini official or OpenAI-compatible base URL)
 - Model: `google/nano-banana-pro`
 - Aspect ratio: 1:1
 - Resolution: 1K
@@ -252,7 +252,7 @@ Implement Image Steering Agent and Asset Factory to generate high-quality transp
 - file:backend/app/routers/generate_assets.py - API endpoints
 
 **Configuration:**
-- file:backend/app/core/config.py - Added `nano_banana_api_key`
+- file:backend/app/core/config.py - Image generation is now provider-configurable at runtime (via `/settings`)
 - file:backend/app/main.py - Registered generate_assets router
 
 **Documentation:**

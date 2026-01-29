@@ -17,6 +17,7 @@ from pydantic import Field
 
 from app.schemas import CamelCaseModel
 from app.schemas.lesson import LessonManifestResponse
+from app.schemas.generation_config import AIAgentsConfig
 from app.services.ai_director import ai_director_service
 from app.services.tts_service import tts_service
 from app.services.exceptions import (
@@ -50,17 +51,11 @@ class ErrorResponse(CamelCaseModel):
 class GenerateLessonRequest(CamelCaseModel):
     """Request body for lesson generation using pre-generated assets."""
 
-    topic_text: str = Field(
-        ...,
-        min_length=10,
-        description="Topic content"
-    )
-    asset_ids: list[str] = Field(
-        ...,
-        min_length=5,
-        max_length=5,
-        description="Asset IDs (exactly 5)"
-    )
+    topic_text: str = Field(..., min_length=10, description="Topic content")
+    asset_ids: list[str] = Field(..., min_length=5, max_length=5, description="Asset IDs (exactly 5)")
+
+    ai: AIAgentsConfig | None = Field(default=None, description="Optional per-request AI provider configuration")
+    eleven_labs_api_key: str | None = Field(default=None, alias="elevenLabsApiKey")
 
 
 @router.post(
@@ -94,14 +89,18 @@ async def generate_lesson(request: GenerateLessonRequest) -> LessonManifestRespo
 
         lesson_manifest = await ai_director_service.generate_lesson_manifest(
             topic_text=request.topic_text,
-            asset_ids=request.asset_ids
+            asset_ids=request.asset_ids,
+            ai_config=(request.ai.ai_director if request.ai else None),
         )
 
         narration_segments = []
         for scene in lesson_manifest.get("scenes", []):
             narration_segments.extend(scene.get("voiceover", []))
 
-        audio_bytes = await tts_service.synthesize_narration(narration_segments)
+        audio_bytes = await tts_service.synthesize_narration(
+            narration_segments,
+            elevenlabs_api_key=request.eleven_labs_api_key,
+        )
 
         if audio_bytes:
             audio_duration = await tts_service.get_audio_duration(audio_bytes)

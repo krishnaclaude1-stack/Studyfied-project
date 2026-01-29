@@ -504,7 +504,7 @@ Image Prompt Generator (LLM - Gemini 3 Flash Preview)
       ├─> Produces image_prompt output
       │
       ▼
-Nano Banana Pro (apifree.ai)
+Gemini Images or OpenAI-compatible Images API
       (Parallel Generation - Style enforced by Prompt)
       │
       ▼

@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.schemas import CamelCaseModel
+from app.schemas.generation_config import AIAgentsConfig
 from app.services.image_steering import image_steering_service
 from app.services.asset_factory import asset_factory_service
 from app.services.ai_director import ai_director_service
@@ -22,7 +23,6 @@ from app.services.exceptions import (
     InvalidAPIKeyError,
     ImagePromptGenerationError,
     InvalidImagePromptCountError,
-    NanoBananaAPIError,
     ImageProcessingError,
     ImageGenerationError,
     LessonGenerationError,
@@ -41,12 +41,13 @@ router = APIRouter(prefix="/api/v1", tags=["assets"])
 
 class GenerateAssetsRequest(CamelCaseModel):
     """Request body for asset generation."""
-    
+
     topic_text: str = Field(
         ...,
         min_length=10,
-        description="Topic text to generate visual assets for"
+        description="Topic text to generate visual assets for",
     )
+    ai: AIAgentsConfig | None = Field(default=None, description="Optional per-request AI provider configuration")
 
 
 class GeneratedAsset(CamelCaseModel):
@@ -107,8 +108,11 @@ async def generate_image_prompts(request: GenerateAssetsRequest) -> ImagePrompts
     try:
         logger.info(f"Generating image prompts for topic ({len(request.topic_text)} chars)")
         
-        result = await image_steering_service.generate_image_prompts(request.topic_text)
-        
+        result = await image_steering_service.generate_image_prompts(
+            request.topic_text,
+            ai_config=(request.ai.image_steering if request.ai else None),
+        )
+
         return ImagePromptsResponse(
             storyboard_overview=result["storyboardOverview"],
             images=result["images"]
@@ -149,7 +153,7 @@ async def generate_assets(request: GenerateAssetsRequest) -> GenerateAssetsRespo
     
     This endpoint:
     1. Generates 5 image prompts using ImageSteeringService
-    2. Creates images using Nano Banana Pro API
+    2. Creates images using the configured image generation provider (Gemini or OpenAI-compatible)
     3. Processes images with OpenCV for transparent background
     4. Returns base64-encoded PNG assets
     
@@ -160,16 +164,22 @@ async def generate_assets(request: GenerateAssetsRequest) -> GenerateAssetsRespo
         
         # Step 1: Generate image prompts
         logger.info("Step 1: Generating image prompts...")
-        prompts_result = await image_steering_service.generate_image_prompts(request.topic_text)
-        
+        prompts_result = await image_steering_service.generate_image_prompts(
+            request.topic_text,
+            ai_config=(request.ai.image_steering if request.ai else None),
+        )
+
         # Step 2: Extract prompt strings
         image_prompts = prompts_result["images"]
         prompt_texts = [img["imagePrompt"] for img in image_prompts]
         
         # Step 3: Generate assets in parallel
         logger.info("Step 2: Generating images and processing...")
-        asset_pngs = await asset_factory_service.generate_assets(prompt_texts)
-        
+        asset_pngs = await asset_factory_service.generate_assets(
+            prompt_texts,
+            ai_config=(request.ai.image_generation if request.ai else None),
+        )
+
         # Create asset IDs
         asset_ids = [f"asset_{i}" for i in range(len(asset_pngs))]
         
@@ -214,20 +224,17 @@ async def generate_assets(request: GenerateAssetsRequest) -> GenerateAssetsRespo
 
 class GenerateLessonRequest(CamelCaseModel):
     """Request body for complete lesson generation."""
-    
+
     topic_text: str = Field(
         ...,
         min_length=10,
-        description="Topic text to generate lesson for"
+        description="Topic text to generate lesson for",
     )
-    topic_id: str | None = Field(
-        None,
-        description="Optional topic ID for tracking"
-    )
-    include_quiz: bool = Field(
-        default=False,
-        description="Include quiz interactions (for future integration)"
-    )
+    topic_id: str | None = Field(None, description="Optional topic ID for tracking")
+    include_quiz: bool = Field(default=False, description="Include quiz interactions (for future integration)")
+
+    ai: AIAgentsConfig | None = Field(default=None, description="Optional per-request AI provider configuration")
+    eleven_labs_api_key: str | None = Field(default=None, alias="elevenLabsApiKey")
 
 
 class GenerateLessonResponse(CamelCaseModel):
@@ -266,14 +273,20 @@ async def generate_lesson(request: GenerateLessonRequest) -> GenerateLessonRespo
         
         # Step 1: Generate image prompts
         logger.info("Step 1/4: Generating image prompts...")
-        prompts_result = await image_steering_service.generate_image_prompts(request.topic_text)
-        
+        prompts_result = await image_steering_service.generate_image_prompts(
+            request.topic_text,
+            ai_config=(request.ai.image_steering if request.ai else None),
+        )
+
         # Step 2: Generate assets
         logger.info("Step 2/4: Generating visual assets...")
         image_prompts = prompts_result["images"]
         prompt_texts = [img["imagePrompt"] for img in image_prompts]
-        asset_pngs = await asset_factory_service.generate_assets(prompt_texts)
-        
+        asset_pngs = await asset_factory_service.generate_assets(
+            prompt_texts,
+            ai_config=(request.ai.image_generation if request.ai else None),
+        )
+
         # Create asset IDs
         asset_ids = [f"asset_{i}" for i in range(len(asset_pngs))]
         
@@ -281,7 +294,8 @@ async def generate_lesson(request: GenerateLessonRequest) -> GenerateLessonRespo
         logger.info("Step 3/4: Generating lesson manifest...")
         lesson_manifest = await ai_director_service.generate_lesson_manifest(
             topic_text=request.topic_text,
-            asset_ids=asset_ids
+            asset_ids=asset_ids,
+            ai_config=(request.ai.ai_director if request.ai else None),
         )
         
         # Extract narration segments from all scenes
@@ -292,7 +306,10 @@ async def generate_lesson(request: GenerateLessonRequest) -> GenerateLessonRespo
         
         # Step 4: Generate TTS audio
         logger.info("Step 4/4: Generating TTS audio...")
-        audio_bytes = await tts_service.synthesize_narration(narration_segments)
+        audio_bytes = await tts_service.synthesize_narration(
+            narration_segments,
+            elevenlabs_api_key=request.eleven_labs_api_key,
+        )
         
         # Validate audio duration against manifest duration
         if audio_bytes:
