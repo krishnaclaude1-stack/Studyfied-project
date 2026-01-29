@@ -48,7 +48,7 @@ export function Workspace() {
       // Clear session on unmount (component cleanup)
       setLessonId(null)
     }
-  }, [lessonId, setLessonId])
+  }, [lessonId]) // Remove setLessonId from dependencies - it's stable from Zustand
 
   // Load mock lesson if not already loaded
   useEffect(() => {
@@ -145,7 +145,7 @@ export function Workspace() {
       const mockAudioUrl = generateSilentAudio()
       setLesson(mockLesson, mockAudioUrl)
     }
-  }, [lessonManifest, setLesson])
+  }, [lessonManifest]) // Remove setLesson from dependencies - it's stable from Zustand
 
   // Check for lesson completion
   useEffect(() => {

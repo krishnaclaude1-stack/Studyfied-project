@@ -26,12 +26,54 @@ export function ProcessingScreen() {
   const [error, setError] = useState<string | null>(null)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
 
-  // Mutations for analysis
-  const analyzeUrlMutation = useAnalyzeUrl()
-  const analyzePdfMutation = useAnalyzePdf()
+  // Helper to transform topics for navigation
+  const transformTopics = (data: { topics: any[] }) => ({
+    topics: data.topics.map((topic) => ({
+      id: topic.id,
+      title: topic.title,
+      description: topic.focus,
+      tags: topic.keyVisuals.slice(0, 3),
+      duration: '5-8 min',
+      isRecommended: topic.visualPotentialScore > 0.8,
+      topicText: `${topic.title}. ${topic.focus}. ${topic.hook}`,
+    })),
+  })
+
+  // Mutations with callbacks - replaces 8 separate useEffect hooks
+  const analyzeUrlMutation = useAnalyzeUrl({
+    onSuccess: (data) => {
+      navigate('/topics', { state: transformTopics(data) })
+    },
+    onError: (error) => {
+      setError(error.message || 'Failed to analyze URL. Please try again.')
+    },
+  })
+
+  const analyzePdfMutation = useAnalyzePdf({
+    onSuccess: (data) => {
+      navigate('/topics', { state: transformTopics(data) })
+    },
+    onError: (error) => {
+      setError(error.message || 'Failed to analyze PDF. Please try again.')
+    },
+  })
   
-  // Mutation for generation
-  const generateLessonMutation = useGenerateLesson()
+  const generateLessonMutation = useGenerateLesson({
+    onSuccess: (data) => {
+      // Store lesson in Zustand store first
+      setLesson(data.lessonManifest, data.audioUrl)
+      
+      // Then navigate to workspace
+      navigate('/workspace', {
+        state: {
+          lessonId: data.lessonManifest.scenes[0]?.sceneId || 'lesson_1',
+        },
+      })
+    },
+    onError: (error) => {
+      setError(error.message || 'Failed to generate lesson. Please try again.')
+    },
+  })
 
   // Redirect if no state or invalid state
   useEffect(() => {
@@ -90,78 +132,8 @@ export function ProcessingScreen() {
     } else if (state.stage === 'generation' && state.topicText) {
       generateLessonMutation.mutate(state.topicText)
     }
-  }, []) // Empty dependency array - only run on mount
-
-  // Handle analysis success
-  useEffect(() => {
-    if (analyzeUrlMutation.isSuccess && analyzeUrlMutation.data) {
-      navigate('/topics', {
-        state: {
-          topics: analyzeUrlMutation.data.topics.map((topic) => ({
-            id: topic.id,
-            title: topic.title,
-            description: topic.focus,
-            tags: topic.keyVisuals.slice(0, 3),
-            duration: '5-8 min',
-            isRecommended: topic.visualPotentialScore > 0.8,
-            topicText: `${topic.title}. ${topic.focus}. ${topic.hook}`,
-          })),
-        },
-      })
-    }
-  }, [analyzeUrlMutation.isSuccess, analyzeUrlMutation.data, navigate])
-
-  useEffect(() => {
-    if (analyzePdfMutation.isSuccess && analyzePdfMutation.data) {
-      navigate('/topics', {
-        state: {
-          topics: analyzePdfMutation.data.topics.map((topic) => ({
-            id: topic.id,
-            title: topic.title,
-            description: topic.focus,
-            tags: topic.keyVisuals.slice(0, 3),
-            duration: '5-8 min',
-            isRecommended: topic.visualPotentialScore > 0.8,
-            topicText: `${topic.title}. ${topic.focus}. ${topic.hook}`,
-          })),
-        },
-      })
-    }
-  }, [analyzePdfMutation.isSuccess, analyzePdfMutation.data, navigate])
-
-  // Handle generation success
-  useEffect(() => {
-    if (generateLessonMutation.isSuccess && generateLessonMutation.data) {
-      // Store lesson in Zustand store first
-      setLesson(generateLessonMutation.data.lessonManifest, generateLessonMutation.data.audioUrl)
-      
-      // Then navigate to workspace
-      navigate('/workspace', {
-        state: {
-          lessonId: generateLessonMutation.data.lessonManifest.scenes[0]?.sceneId || 'lesson_1',
-        },
-      })
-    }
-  }, [generateLessonMutation.isSuccess, generateLessonMutation.data, setLesson, navigate])
-
-  // Handle errors from mutations
-  useEffect(() => {
-    if (analyzeUrlMutation.isError) {
-      setError(analyzeUrlMutation.error.message || 'Failed to analyze URL. Please try again.')
-    }
-  }, [analyzeUrlMutation.isError, analyzeUrlMutation.error])
-
-  useEffect(() => {
-    if (analyzePdfMutation.isError) {
-      setError(analyzePdfMutation.error.message || 'Failed to analyze PDF. Please try again.')
-    }
-  }, [analyzePdfMutation.isError, analyzePdfMutation.error])
-
-  useEffect(() => {
-    if (generateLessonMutation.isError) {
-      setError(generateLessonMutation.error.message || 'Failed to generate lesson. Please try again.')
-    }
-  }, [generateLessonMutation.isError, generateLessonMutation.error])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run on mount - mutations are handled by callbacks above
 
   const handleBack = () => {
     if (state?.stage === 'generation') {

@@ -73,7 +73,8 @@ export const useSessionHydration = ({
         );
       }
     }
-  }, [lessonId, audioDuration, hydrateSession, hydratePlayer, hydrateAnnotations, onTabConflict]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lessonId, audioDuration]);
 
   const claimOwnership = () => {
     claimSession(lessonId);

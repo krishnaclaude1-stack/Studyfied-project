@@ -147,7 +147,7 @@ Studyfied is a **Single Page Application (SPA)** built on **React**. The core ex
 
 ### FR Area: Asset Generation (Image Steering & Factory)
 *   **FR4:** **Image Steering Agent:** System analyzes selected topic and generates a set of Image Prompts (e.g., 4 specific + 1 grid) ensuring strict adherence to "Sketch Note" style (Black/White + Teal/Orange accents).
-*   **FR5:** system generates High-Res (2K) 16:9 Images using **Nano Banana Pro** (via `apifree.ai` 3rd party API). Prompts are executed in **parallel**.
+*   **FR5:** system generates High-Res images using **Gemini Images or an OpenAI-compatible Images API**. Prompts are executed in **parallel**.
 *   **FR6:** **Asset Processor:** System processes raw images using **OpenCV HSV Smart Key** to remove backgrounds and slice grids into individual **Transparent PNG** assets. Reference usage of `asset_pipeline_lessons_learned.md`.
 
 ### FR Area: Lesson Generation (The AI Director)

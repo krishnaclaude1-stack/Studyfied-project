@@ -176,7 +176,7 @@ sequenceDiagram
 
 **Asset Pipeline:**
 
-1. **Generation** (Nano Banana Pro via apifree.ai):
+1. **Generation** (Gemini Images or OpenAI-compatible Images API):
   - Style: Sketchnote, black-and-white with teal/orange accents
   - Format: High-res 2K images (16:9 aspect ratio)
   - Output: Raw PNG with white background

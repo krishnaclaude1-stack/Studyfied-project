@@ -145,19 +145,7 @@ class InvalidImagePromptCountError(ImageGenerationError):
         )
 
 
-class NanoBananaAPIError(ImageGenerationError):
-    """Raised when Nano Banana API calls fail."""
-    
-    def __init__(self, reason: str, status_code: int | None = None, request_id: str | None = None):
-        super().__init__(
-            message=f"Nano Banana API error: {reason}",
-            code="NANO_BANANA_API_ERROR",
-            details={
-                "reason": reason,
-                "status_code": status_code,
-                "request_id": request_id
-            }
-        )
+# Nano Banana exception removed (legacy).
 
 
 class ImageProcessingError(ImageGenerationError):

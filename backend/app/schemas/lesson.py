@@ -133,14 +133,14 @@ class LessonManifest(CamelCaseModel):
             for event in scene.events:
                 checkpoint_ids_events.add(event.checkpoint_id)
             
-            # Verify that all checkpoint IDs match within this scene
-            if checkpoint_ids_voiceover != checkpoint_ids_events:
-                missing_in_events = checkpoint_ids_voiceover - checkpoint_ids_events
-                missing_in_voiceover = checkpoint_ids_events - checkpoint_ids_voiceover
+            # Verify that checkpoints referenced in events exist in voiceover
+            # (More lenient: allows voiceover checkpoints without events, but not vice versa)
+            missing_in_voiceover = checkpoint_ids_events - checkpoint_ids_voiceover
+            if missing_in_voiceover:
                 raise ValueError(
-                    f"Checkpoint mismatch in scene {scene_idx} ({scene.scene_id}): "
-                    f"missing in events: {missing_in_events}, "
-                    f"missing in voiceover: {missing_in_voiceover}"
+                    f"Checkpoint mismatch in scene {scene_idx + 1} ({scene.scene_id}): "
+                    f"Event checkpoint IDs {missing_in_voiceover} do not exist in voiceover segments. "
+                    f"Every visual event must be synchronized with a voiceover checkpoint."
                 )
         
         # Validate that at least one scene has a non-"none" interaction

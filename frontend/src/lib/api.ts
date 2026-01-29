@@ -1,5 +1,7 @@
 // API client functions for backend endpoints
 
+import { getApiSettings } from './apiSettingsPayload'
+
 // Use empty string for relative URLs - Vite proxy handles routing to backend
 const API_BASE_URL = ''
 
@@ -24,12 +26,24 @@ class APIError extends Error {
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const errorData = (await response.json()) as ErrorResponse
-    throw new APIError(
-      errorData.error.message,
-      errorData.error.code,
-      errorData.error.details
-    )
+    let data: unknown = null
+    try {
+      data = await response.json()
+    } catch {
+      // ignore
+    }
+
+    // Support multiple backend error shapes:
+    // 1) { error: { code, message, details } }
+    // 2) { detail: { error: { ... } } } (FastAPI HTTPException wrapper)
+    // 3) { detail: "..." }
+    const anyData = data as any
+    const err = anyData?.error ?? anyData?.detail?.error
+    const message = err?.message ?? anyData?.detail ?? `Request failed with status ${response.status}`
+    const code = err?.code ?? 'HTTP_ERROR'
+    const details = err?.details
+
+    throw new APIError(message, code, details)
   }
   return response.json()
 }
@@ -95,12 +109,17 @@ export interface GenerateLessonResponse {
  * Analyze content from a URL
  */
 export async function analyzeUrl(url: string): Promise<AnalyzeResponse> {
+  const settings = getApiSettings()
+
   const response = await fetch(`${API_BASE_URL}/api/v1/analyze`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({
+      url,
+      aiConfig: settings.librarian,
+    }),
   })
 
   return handleResponse<AnalyzeResponse>(response)
@@ -110,8 +129,11 @@ export async function analyzeUrl(url: string): Promise<AnalyzeResponse> {
  * Analyze content from a PDF file
  */
 export async function analyzePdf(file: File): Promise<AnalyzeResponse> {
+  const settings = getApiSettings()
+
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('aiConfig', JSON.stringify(settings.librarian))
 
   const response = await fetch(`${API_BASE_URL}/api/v1/analyze/pdf`, {
     method: 'POST',
@@ -125,12 +147,23 @@ export async function analyzePdf(file: File): Promise<AnalyzeResponse> {
  * Generate a complete lesson from a topic
  */
 export async function generateLesson(topicText: string): Promise<GenerateLessonResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/generate-lesson`, {
+  const settings = getApiSettings()
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/generate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ topicText }),
+    body: JSON.stringify({
+      topicText,
+      ai: {
+        librarian: settings.librarian,
+        imageSteering: settings.imageSteering,
+        aiDirector: settings.aiDirector,
+        imageGeneration: settings.imageGeneration,
+      },
+      elevenLabsApiKey: settings.elevenLabsApiKey || undefined,
+    }),
   })
 
   return handleResponse<GenerateLessonResponse>(response)

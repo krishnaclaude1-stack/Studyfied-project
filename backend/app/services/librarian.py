@@ -24,6 +24,8 @@ from pydantic import ValidationError
 
 from app.core.config import Settings, get_settings
 from app.schemas.analyze import AnalyzeResponse, TopicItem
+from app.schemas.ai_provider import AIProvider, AIProviderConfig
+from app.services.openai_compatible_client import OpenAICompatibleAuth, openai_compatible_client
 from .exceptions import InvalidAPIKeyError, TopicExtractionFailedError
 
 logger = logging.getLogger(__name__)
@@ -107,7 +109,12 @@ class LibrarianService:
         
         return self._client
     
-    async def extract_topics(self, raw_text: str, retry_count: int = 0) -> dict[str, Any]:
+    async def extract_topics(
+        self,
+        raw_text: str,
+        retry_count: int = 0,
+        ai_config: AIProviderConfig | None = None,
+    ) -> dict[str, Any]:
         """
         Extract topics from raw text using Gemini.
         
@@ -122,8 +129,8 @@ class LibrarianService:
             InvalidAPIKeyError: If API key is invalid.
             TopicExtractionFailedError: If extraction fails after retries.
         """
-        client = self._get_client()
-        
+        ai_config = ai_config or AIProviderConfig()
+
         # Construct the prompt
         user_prompt = f"""Analyze the following educational content and extract teachable topics:
 
@@ -134,38 +141,76 @@ class LibrarianService:
 Extract topics following the rules and output valid JSON."""
 
         try:
-            # Call Gemini API with JSON response format
-            # Wrap synchronous call in asyncio.to_thread to avoid blocking the event loop
-            response = await asyncio.to_thread(
-                client.models.generate_content,
-                model=self._model_name,
-                contents=[
-                    types.Content(
-                        role="user",
-                        parts=[types.Part(text=LIBRARIAN_SYSTEM_PROMPT + "\n\n" + user_prompt)]
+            if ai_config.provider == AIProvider.OPENAI_COMPATIBLE:
+                if not ai_config.openai_compatible:
+                    raise TopicExtractionFailedError(
+                        "openaiCompatible config is required when provider=openaiCompatible"
                     )
-                ],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
+
+                content = await openai_compatible_client.chat_completions(
+                    auth=OpenAICompatibleAuth(
+                        base_url=str(ai_config.openai_compatible.base_url),
+                        api_key=ai_config.openai_compatible.api_key,
+                    ),
+                    model=ai_config.openai_compatible.model,
+                    messages=[
+                        {"role": "system", "content": LIBRARIAN_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
                     temperature=0.7,
-                    max_output_tokens=4096,
+                    max_tokens=4096,
+                    response_format="json_object",
                 )
-            )
-            
-            # Extract response text
-            if not response.text:
-                raise TopicExtractionFailedError("Empty response from Gemini API")
-            
-            # Parse JSON response
-            try:
-                result = json.loads(response.text)
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse Gemini response as JSON: {e}")
-                if retry_count < 1:
-                    # Retry with same prompt; LLM randomness (temperature=0.7) may yield valid JSON
-                    logger.info("Retrying request (attempt 2/2)...")
-                    return await self.extract_topics(raw_text, retry_count + 1)
-                raise TopicExtractionFailedError(f"Invalid JSON response: {e}")
+
+                try:
+                    from app.services.json_utils import extract_json
+                    result = extract_json(content)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse OpenAI-compatible response as JSON: {e}")
+                    logger.error(f"Response content: {content[:500]}")
+                    if retry_count < 1:
+                        logger.info("Retrying request (attempt 2/2)...")
+                        return await self.extract_topics(raw_text, retry_count + 1, ai_config=ai_config)
+                    raise TopicExtractionFailedError(f"Invalid JSON response: {e}")
+            else:
+                # Official Gemini
+                client = self._get_client()
+                model_name = ai_config.resolve_gemini_model(self._model_name)
+                api_key = ai_config.resolve_gemini_api_key(self._settings.gemini_api_key)
+                if api_key != self._settings.gemini_api_key:
+                    # Per-request override: create a short-lived client for this call.
+                    client = genai.Client(api_key=api_key)
+
+                # Call Gemini API with JSON response format
+                response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=model_name,
+                    contents=[
+                        types.Content(
+                            role="user",
+                            parts=[types.Part(text=LIBRARIAN_SYSTEM_PROMPT + "\n\n" + user_prompt)],
+                        )
+                    ],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.7,
+                        max_output_tokens=4096,
+                    ),
+                )
+
+                if not response.text:
+                    raise TopicExtractionFailedError("Empty response from Gemini API")
+
+                try:
+                    from app.services.json_utils import extract_json
+                    result = extract_json(response.text)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse Gemini response as JSON: {e}")
+                    logger.error(f"Response content: {response.text[:500]}")
+                    if retry_count < 1:
+                        logger.info("Retrying request (attempt 2/2)...")
+                        return await self.extract_topics(raw_text, retry_count + 1, ai_config=ai_config)
+                    raise TopicExtractionFailedError(f"Invalid JSON response: {e}")
             
             # Validate with Pydantic
             try:
@@ -177,7 +222,7 @@ Extract topics following the rules and output valid JSON."""
                 if retry_count < 1:
                     # Retry with same prompt; LLM randomness may yield valid schema
                     logger.info("Retrying request due to validation failure (attempt 2/2)...")
-                    return await self.extract_topics(raw_text, retry_count + 1)
+                    return await self.extract_topics(raw_text, retry_count + 1, ai_config=ai_config)
                 raise TopicExtractionFailedError(f"Response validation failed: {e}")
                 
         except InvalidAPIKeyError:
@@ -185,7 +230,7 @@ Extract topics following the rules and output valid JSON."""
         except TopicExtractionFailedError:
             raise
         except Exception as e:
-            logger.error(f"Gemini API error: {e}")
+            logger.error(f"LLM provider error: {e}")
             error_str = str(e).lower()
             if "api key" in error_str or "authentication" in error_str or "401" in error_str:
                 raise InvalidAPIKeyError()

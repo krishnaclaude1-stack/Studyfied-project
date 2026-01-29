@@ -24,6 +24,8 @@ from pydantic import ValidationError
 
 from app.core.config import Settings, get_settings
 from app.schemas.image_generation import ImageSteeringResponse
+from app.schemas.ai_provider import AIProvider, AIProviderConfig
+from app.services.openai_compatible_client import OpenAICompatibleAuth, openai_compatible_client
 from .exceptions import (
     InvalidAPIKeyError,
     ImagePromptGenerationError,
@@ -174,7 +176,12 @@ class ImageSteeringService:
         
         return self._client
     
-    async def generate_image_prompts(self, topic_text: str, retry_count: int = 0) -> dict[str, Any]:
+    async def generate_image_prompts(
+        self,
+        topic_text: str,
+        retry_count: int = 0,
+        ai_config: AIProviderConfig | None = None,
+    ) -> dict[str, Any]:
         """
         Generate exactly 5 image prompts from topic text using Gemini.
         
@@ -190,8 +197,9 @@ class ImageSteeringService:
             ImagePromptGenerationError: If generation fails after retries.
             InvalidImagePromptCountError: If fewer than 5 prompts generated after retry.
         """
-        client = self._get_client()
-        
+        ai_config = ai_config or AIProviderConfig()
+        logger.info(f"ImageSteering provider={ai_config.provider}")
+
         # Construct the user prompt
         user_prompt = f"""Analyze the following topic and generate exactly 5 image prompts for a sketchnote-style educational video:
 
@@ -202,37 +210,76 @@ class ImageSteeringService:
 Generate exactly 5 image prompts following the rules. Output valid JSON only."""
 
         try:
-            # Call Gemini API with JSON response format
-            # Wrap synchronous call in asyncio.to_thread to avoid blocking the event loop
-            response = await asyncio.to_thread(
-                client.models.generate_content,
-                model=self._model_name,
-                contents=[
-                    types.Content(
-                        role="user",
-                        parts=[types.Part(text=IMAGE_STEERING_SYSTEM_PROMPT + "\n\n" + user_prompt)]
+            if ai_config.provider == AIProvider.OPENAI_COMPATIBLE:
+                if not ai_config.openai_compatible:
+                    raise ImagePromptGenerationError(
+                        "openaiCompatible config is required when provider=openaiCompatible"
                     )
-                ],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
+
+                content = await openai_compatible_client.chat_completions(
+                    auth=OpenAICompatibleAuth(
+                        base_url=str(ai_config.openai_compatible.base_url),
+                        api_key=ai_config.openai_compatible.api_key,
+                    ),
+                    model=ai_config.openai_compatible.model,
+                    messages=[
+                        {"role": "system", "content": IMAGE_STEERING_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
                     temperature=0.7,
-                    max_output_tokens=4096,
+                    max_tokens=4096,
+                    # Don't rely on vendor support for response_format. We'll parse robustly.
+                    response_format="text",
                 )
-            )
-            
-            # Extract response text
-            if not response.text:
-                raise ImagePromptGenerationError("Empty response from Gemini API")
-            
-            # Parse JSON response
-            try:
-                result = json.loads(response.text)
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse Gemini response as JSON: {e}")
-                if retry_count < 1:
-                    logger.info("Retrying request (attempt 2/2)...")
-                    return await self.generate_image_prompts(topic_text, retry_count + 1)
-                raise ImagePromptGenerationError(f"Invalid JSON response: {e}")
+
+                try:
+                    from app.services.json_utils import extract_json
+
+                    result = extract_json(content)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse OpenAI-compatible response as JSON: {e}")
+                    logger.error(f"Response content: {content[:500]}")
+                    if retry_count < 1:
+                        logger.info("Retrying request (attempt 2/2)...")
+                        return await self.generate_image_prompts(topic_text, retry_count + 1, ai_config=ai_config)
+                    raise ImagePromptGenerationError(f"Invalid JSON response: {e}")
+            else:
+                # Official Gemini
+                client = self._get_client()
+                model_name = ai_config.resolve_gemini_model(self._model_name)
+                api_key = ai_config.resolve_gemini_api_key(self._settings.gemini_api_key)
+                if api_key != self._settings.gemini_api_key:
+                    client = genai.Client(api_key=api_key)
+
+                response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=model_name,
+                    contents=[
+                        types.Content(
+                            role="user",
+                            parts=[types.Part(text=IMAGE_STEERING_SYSTEM_PROMPT + "\n\n" + user_prompt)],
+                        )
+                    ],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.7,
+                        max_output_tokens=4096,
+                    ),
+                )
+
+                if not response.text:
+                    raise ImagePromptGenerationError("Empty response from Gemini API")
+
+                try:
+                    from app.services.json_utils import extract_json
+                    result = extract_json(response.text)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse Gemini response as JSON: {e}")
+                    logger.error(f"Response content: {response.text[:500]}")
+                    if retry_count < 1:
+                        logger.info("Retrying request (attempt 2/2)...")
+                        return await self.generate_image_prompts(topic_text, retry_count + 1, ai_config=ai_config)
+                    raise ImagePromptGenerationError(f"Invalid JSON response: {e}")
             
             # Validate with Pydantic
             try:
@@ -248,7 +295,7 @@ Generate exactly 5 image prompts following the rules. Output valid JSON only."""
                     logger.warning(f"Received only {len(validated.images)} prompts, expected 5")
                     if retry_count < 1:
                         logger.info("Retrying request due to insufficient prompts (attempt 2/2)...")
-                        return await self.generate_image_prompts(topic_text, retry_count + 1)
+                        return await self.generate_image_prompts(topic_text, retry_count + 1, ai_config=ai_config)
                     raise InvalidImagePromptCountError(len(validated.images), 5)
                 
                 # Validate mandatory prefix in all prompts
@@ -261,7 +308,7 @@ Generate exactly 5 image prompts following the rules. Output valid JSON only."""
                     logger.warning(f"Prompts at indices {missing_prefix_indices} missing mandatory prefix")
                     if retry_count < 1:
                         logger.info("Retrying request due to missing mandatory prefix (attempt 2/2)...")
-                        return await self.generate_image_prompts(topic_text, retry_count + 1)
+                        return await self.generate_image_prompts(topic_text, retry_count + 1, ai_config=ai_config)
                     raise ImagePromptGenerationError(
                         f"Image prompts at indices {missing_prefix_indices} missing mandatory sketchnote prefix"
                     )
@@ -273,7 +320,7 @@ Generate exactly 5 image prompts following the rules. Output valid JSON only."""
                 logger.error(f"Pydantic validation failed: {e}")
                 if retry_count < 1:
                     logger.info("Retrying request due to validation failure (attempt 2/2)...")
-                    return await self.generate_image_prompts(topic_text, retry_count + 1)
+                    return await self.generate_image_prompts(topic_text, retry_count + 1, ai_config=ai_config)
                 raise ImagePromptGenerationError(f"Response validation failed: {e}")
                 
         except InvalidAPIKeyError:
@@ -281,7 +328,7 @@ Generate exactly 5 image prompts following the rules. Output valid JSON only."""
         except (ImagePromptGenerationError, InvalidImagePromptCountError):
             raise
         except Exception as e:
-            logger.error(f"Gemini API error: {e}")
+            logger.error(f"LLM provider error: {e}")
             error_str = str(e).lower()
             if "api key" in error_str or "authentication" in error_str or "401" in error_str:
                 raise InvalidAPIKeyError()

@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     
     # API Keys (optional for MVP)
     gemini_api_key: str = ""
-    nano_banana_api_key: str = ""
     elevenlabs_api_key: str = ""
     
     class Config:

@@ -10,10 +10,11 @@ Orchestrates ContentIngestorService and LibrarianService to:
 4. Return structured topic menu
 """
 
+import json
 import logging
 from typing import Annotated, Optional, Union
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from app.schemas.analyze import (
@@ -22,6 +23,7 @@ from app.schemas.analyze import (
     ErrorDetail,
     ErrorResponse,
 )
+from app.schemas.ai_provider import AIProviderConfig
 from app.services.content_ingestor import ContentIngestorService
 from app.services.librarian import LibrarianService
 from app.services.exceptions import (
@@ -68,7 +70,7 @@ def create_error_response(
     )
 
 
-async def _process_and_extract_topics(raw_text: str, source_description: str):
+async def _process_and_extract_topics(raw_text: str, source_description: str, ai_config=None):
     """Common logic to validate content and extract topics."""
     # Validate extracted content
     try:
@@ -93,7 +95,7 @@ async def _process_and_extract_topics(raw_text: str, source_description: str):
     # Extract topics using Librarian service
     try:
         logger.info(f"Extracting topics from {len(raw_text)} characters of content")
-        topics_data = await librarian.extract_topics(raw_text)
+        topics_data = await librarian.extract_topics(raw_text, ai_config=ai_config)
         return AnalyzeResponse(**topics_data)
     except InvalidAPIKeyError as e:
         logger.error(f"Invalid API key: {e.message}")
@@ -184,8 +186,8 @@ async def analyze_url(request: AnalyzeUrlRequest) -> Union[AnalyzeResponse, JSON
             message=e.message,
             details=e.details
         )
-    
-    return await _process_and_extract_topics(raw_text, source_description)
+
+    return await _process_and_extract_topics(raw_text, source_description, ai_config=request.ai_config)
 
 
 @router.post(
@@ -206,7 +208,8 @@ async def analyze_url(request: AnalyzeUrlRequest) -> Union[AnalyzeResponse, JSON
     """
 )
 async def analyze_pdf(
-    file: Annotated[UploadFile, File(description="PDF file to analyze")]
+    file: Annotated[UploadFile, File(description="PDF file to analyze")],
+    ai_config: Annotated[str | None, Form(description="Optional AI config JSON for Librarian")] = None,
 ) -> Union[AnalyzeResponse, JSONResponse]:
     """
     Analyze PDF content and extract topics.
@@ -245,5 +248,27 @@ async def analyze_pdf(
             message=e.message,
             details=e.details
         )
-    
-    return await _process_and_extract_topics(raw_text, source_description)
+
+    parsed_ai_config: AIProviderConfig | None = None
+    if ai_config:
+        try:
+            ai_config_dict = json.loads(ai_config)
+            parsed_ai_config = AIProviderConfig(**ai_config_dict)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse ai_config JSON: {e}")
+            return create_error_response(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                code="INVALID_AI_CONFIG_JSON",
+                message="ai_config must be valid JSON",
+                details={"error": str(e), "received": ai_config[:100]}
+            )
+        except ValidationError as e:
+            logger.warning(f"ai_config validation failed: {e}")
+            return create_error_response(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                code="INVALID_AI_CONFIG_SCHEMA",
+                message="ai_config does not match expected schema",
+                details={"errors": e.errors()}
+            )
+
+    return await _process_and_extract_topics(raw_text, source_description, ai_config=parsed_ai_config)
