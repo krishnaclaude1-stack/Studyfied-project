@@ -125,7 +125,7 @@ export async function analyzePdf(file: File): Promise<AnalyzeResponse> {
  * Generate a complete lesson from a topic
  */
 export async function generateLesson(topicText: string): Promise<GenerateLessonResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/generate`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/generate-lesson`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
