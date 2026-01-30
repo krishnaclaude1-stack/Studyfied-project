@@ -1,0 +1,24 @@
+# Docker Compose Override Example
+# Copy this file to docker-compose.override.yml for local customizations
+# This file is gitignored
+
+version: '3.8'
+
+services:
+  frontend:
+    # Override frontend port if needed
+    # ports:
+    #   - "3000:5173"
+    
+    # Add additional environment variables
+    # environment:
+    #   - VITE_DEBUG=true
+
+  backend:
+    # Override backend port if needed
+    # ports:
+    #   - "9000:8000"
+    
+    # Add additional environment variables
+    # environment:
+    #   - LOG_LEVEL=debug
