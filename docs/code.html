@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+    <title>Studyfied - AI STEM Learning Engine</title>
+    <meta name="description"
+        content="Turn complex STEM textbooks into interactive, hand-drawn whiteboard lessons in seconds.">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Patrick+Hand&family=Permanent+Marker&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet">
+
+    <!-- React Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/history@5/umd/history.development.js"></script>
+    <script src="https://unpkg.com/react-router@6.3.0/umd/react-router.development.js"></script>
+    <script src="https://unpkg.com/react-router-dom@6.3.0/umd/react-router-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: "#f45c25",
+                            hover: "#d14413",
+                            light: "#ffccb5"
+                        },
+                        secondary: "#FF7F50", // Coral
+                        indigo: {
+                            indigo: {
+                                DEFAULT: "#18181b", // Zinc 900
+                                dark: "#09090b",    // Zinc 950
+                                light: "#52525b",   // Zinc 600
+                                subtle: "#f4f4f5"   // Zinc 100
+                            },
+                        },
+                        background: {
+                            light: "#F9FAFB",
+                            dark: "#0F172A", // Slate 900
+                            card: "#FFFFFF",
+                            "card-dark": "#1E293B" // Slate 800
+                        },
+                        text: {
+                            main: "#111827",
+                            "main-dark": "#F3F4F6",
+                            muted: "#6B7280",
+                            "muted-dark": "#9CA3AF"
+                        },
+                        success: "#22c55e",
+                        warning: "#eab308",
+                        error: "#ef4444"
+                    },
+                    fontFamily: {
+                        sans: ["Inter", "sans-serif"],
+                        display: ["Space Grotesk", "sans-serif"],
+                        hand: ["Patrick Hand", "cursive"],
+                        marker: ["'Permanent Marker'", "cursive"],
+                    },
+                    backgroundImage: {
+                        'grid-slate': "url('data:image/svg+xml,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27 width=%2732%27 height=%2732%27 fill=%27none%27 stroke=%27rgb(51 65 85 / 0.1)%27%3e%3cpath d=%27M0 .5H31.5V32%27/%3e%3c/svg%3e')",
+                        'grid-slate-dark': "url('data:image/svg+xml,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27 width=%2732%27 height=%2732%27 fill=%27none%27 stroke=%27rgb(148 163 184 / 0.1)%27%3e%3cpath d=%27M0 .5H31.5V32%27/%3e%3c/svg%3e')",
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+                        'hard': '4px 4px 0 0 rgba(15, 23, 42, 0.1)',
+                        'hard-primary': '4px 4px 0 0 rgba(244, 92, 37, 0.3)',
+                        'hard-indigo': '4px 4px 0 0 rgba(79, 70, 229, 0.2)',
+                        'glow': '0 0 20px -5px rgba(244, 92, 37, 0.3)',
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'draw': 'draw 2s ease-out forwards',
+                        'fade-in': 'fadeIn 0.5s ease-out forwards',
+                        'slide-up': 'slideUp 0.5s ease-out forwards',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        },
+                        draw: {
+                            '0%': { strokeDasharray: '1000', strokeDashoffset: '1000' },
+                            '100%': { strokeDashoffset: '0' },
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        }
+                    }
+                },
+            },
+        };
+    </script>
+
+    <style type="text/tailwindcss">
+        @layer components {
+            .btn-primary {
+                @apply bg-primary text-white font-medium px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl transition-all shadow-lg hover:bg-primary-hover hover:shadow-primary/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base;
+            }
+            .btn-secondary {
+                @apply bg-white dark:bg-slate-800 text-text-main dark:text-white font-medium px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-gray-200 dark:border-gray-700 transition-all hover:border-primary hover:text-primary dark:hover:border-primary dark:hover:text-primary active:scale-95 flex items-center justify-center gap-2 shadow-sm text-sm sm:text-base;
+            }
+            .card {
+                @apply bg-white dark:bg-background-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-soft p-4 sm:p-6;
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            @apply bg-gray-300 dark:bg-gray-600 rounded-full;
+        }
+        
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark text-text-main dark:text-text-main-dark font-sans antialiased selection:bg-primary/20 transition-colors duration-300 overflow-x-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { createRoot } = ReactDOM;
+        const { HashRouter, Routes, Route, Link, useNavigate, useLocation } = ReactRouterDOM;
+
+        // --- Common Components ---
+
+        const Icon = ({ name, className = "", filled = false }) => (
+            <span className={`material-symbols-outlined ${filled ? 'filled' : ''} ${className}`} style={{ fontVariationSettings: filled ? "'FILL' 1" : "'FILL' 0" }}>
+                {name}
+            </span>
+        );
+
+        const Navbar = () => {
+            const [isScrolled, setIsScrolled] = useState(false);
+            const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+            useEffect(() => {
+                const handleScroll = () => setIsScrolled(window.scrollY > 10);
+                window.addEventListener('scroll', handleScroll);
+                return () => window.removeEventListener('scroll', handleScroll);
+            }, []);
+
+            return (
+                <nav className={`fixed w-full z-50 transition-all duration-300 ${isScrolled || mobileMenuOpen ? 'bg-white/90 dark:bg-background-dark/90 backdrop-blur-md shadow-sm py-3' : 'bg-transparent py-4 sm:py-5'}`}>
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+                        <Link to="/" className="flex items-center gap-2 group z-50 relative">
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-indigo-DEFAULT text-white rounded-lg flex items-center justify-center shadow-lg shadow-indigo-DEFAULT/30 group-hover:scale-105 transition-transform">
+                                <Icon name="draw" className="text-xl sm:text-2xl" />
+                            </div>
+                            <span className="font-display font-bold text-xl sm:text-2xl tracking-tight text-text-main dark:text-white">Studyfied</span>
+                        </Link>
+
+                        {/* Desktop Nav */}
+                        <div className="hidden md:flex items-center gap-8">
+                            {['Features', 'How it Works', 'Pricing'].map(item => (
+                                <a key={item} href="#" className="text-text-muted dark:text-text-muted-dark hover:text-indigo-DEFAULT dark:hover:text-indigo-light font-medium transition-colors text-sm">
+                                    {item}
+                                </a>
+                            ))}
+                        </div>
+
+                        <div className="hidden md:flex items-center gap-4">
+                            <ThemeToggle />
+                            <Link to="/select-source" className="btn-primary py-2 px-5 text-sm">
+                                Try Guest Mode
+                            </Link>
+                        </div>
+
+                        {/* Mobile Toggle */}
+                        <button className="md:hidden p-2 z-50 relative text-text-main dark:text-white" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+                            <Icon name={mobileMenuOpen ? "close" : "menu"} className="text-2xl" />
+                        </button>
+                    </div>
+
+                    {/* Mobile Menu */}
+                    <div className={`md:hidden fixed inset-0 bg-white dark:bg-background-dark z-40 transform transition-transform duration-300 ease-in-out ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'} pt-24 px-6`}>
+                        <div className="flex flex-col gap-6">
+                            <Link to="/select-source" className="btn-primary w-full justify-center">Try Guest Mode</Link>
+                            {['Features', 'How it Works', 'Pricing'].map(item => (
+                                <a key={item} href="#" className="text-xl font-display font-bold text-text-main dark:text-white py-2 border-b border-gray-100 dark:border-gray-800" onClick={() => setMobileMenuOpen(false)}>{item}</a>
+                            ))}
+                            <div className="flex items-center justify-between py-4 border-t border-gray-100 dark:border-gray-800 mt-4">
+                                <span className="text-text-muted dark:text-text-muted-dark">Theme</span>
+                                <ThemeToggle />
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+            );
+        };
+
+        const ThemeToggle = () => {
+            const toggleTheme = () => document.documentElement.classList.toggle('dark');
+            return (
+                <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-text-muted dark:text-text-muted-dark transition-colors" aria-label="Toggle Theme">
+                    <span className="dark:hidden"><Icon name="dark_mode" /></span>
+                    <span className="hidden dark:block"><Icon name="light_mode" /></span>
+                </button>
+            );
+        }
+
+        // --- Pages ---
+
+        const Hero = () => {
+            const [url, setUrl] = useState('');
+            const navigate = useNavigate();
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (url.trim()) navigate('/loading', { state: { source: url, type: 'url' } });
+            };
+
+            return (
+                <section className="relative pt-28 pb-16 lg:pt-48 lg:pb-32 overflow-hidden px-4 sm:px-6">
+                    <div className="absolute inset-0 bg-background-light dark:bg-background-dark">
+                        <div className="absolute inset-0 bg-grid-slate dark:bg-grid-slate-dark [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] dark:[mask-image:linear-gradient(0deg,rgba(255,255,255,0.1),rgba(255,255,255,0.5))]"></div>
+                    </div>
+
+                    <div className="max-w-7xl mx-auto relative z-10 text-center">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-DEFAULT dark:text-indigo-300 text-xs sm:text-sm font-bold mb-6 sm:mb-8 border border-indigo-100 dark:border-indigo-800/50 animate-fade-in mx-auto">
+                            <Icon name="auto_awesome" className="text-base sm:text-lg" filled />
+                            <span>AI Whiteboard Engine v2.0 Live</span>
+                        </div>
+
+                        <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 sm:mb-8 leading-[1.1] text-text-main dark:text-white animate-slide-up px-2">
+                            Turn dense text into <br className="hidden md:block" />
+                            <span className="block sm:inline mt-2 sm:mt-0">
+                                <span className="relative inline-block text-indigo-DEFAULT">
+                                    whiteboard lessons
+                                    <svg className="absolute -bottom-1 sm:-bottom-2 left-0 w-full h-2 sm:h-3 text-secondary" viewBox="0 0 100 10" preserveAspectRatio="none">
+                                        <path d="M0 5 Q 50 10 100 5" fill="none" stroke="currentColor" strokeWidth="3" />
+                                    </svg>
+                                </span>
+                            </span>
+                            <span className="block sm:inline mt-2 sm:mt-0 ml-0 sm:ml-3 font-hand text-secondary rotate-2">instantly</span>.
+                        </h1>
+
+                        <p className="text-lg sm:text-xl text-text-muted dark:text-text-muted-dark leading-relaxed max-w-2xl mx-auto mb-8 sm:mb-10 px-4 animate-slide-up delay-100">
+                            Studyfied uses Generative AI to sketch concepts in real-time. Just drop a PDF or URL, and watch the magic happen.
+                        </p>
+
+                        <form onSubmit={handleSubmit} className="w-full max-w-xl mx-auto relative z-20 animate-slide-up delay-200 px-2 sm:px-0">
+                            <div className="bg-white dark:bg-slate-800 p-2 rounded-2xl shadow-xl shadow-indigo-900/10 border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row gap-2">
+                                <div className="flex-grow relative">
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                                        <Icon name="link" />
+                                    </div>
+                                    <input
+                                        type="url"
+                                        placeholder="Paste a URL (Wikipedia, Article)..."
+                                        className="w-full pl-12 pr-4 py-3 sm:py-4 rounded-xl bg-gray-50 dark:bg-gray-900/50 border-transparent focus:bg-white dark:focus:bg-black focus:border-indigo-DEFAULT focus:ring-0 text-text-main dark:text-white transition-all outline-none"
+                                        value={url}
+                                        onChange={(e) => setUrl(e.target.value)}
+                                        required
+                                    />
+                                </div>
+                                <button type="submit" className="btn-primary w-full sm:w-auto whitespace-nowrap px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg shadow-indigo-500/20">
+                                    Generate <Icon name="play_arrow" filled />
+                                </button>
+                            </div>
+                            <div className="text-center mt-4">
+                                <Link to="/select-source" className="text-sm font-medium text-text-muted hover:text-indigo-DEFAULT transition-colors flex items-center justify-center gap-1">
+                                    Or upload a PDF document <Icon name="arrow_forward" className="text-sm" />
+                                </Link>
+                            </div>
+                        </form>
+
+                        {/* Interactive Demo UI Placeholder - Mobile Optimized */}
+                        <div className="mt-12 sm:mt-16 relative max-w-5xl mx-auto rounded-xl sm:rounded-3xl border-4 sm:border-8 border-gray-900 dark:border-gray-800 bg-gray-900 shadow-2xl overflow-hidden aspect-[16/10] md:aspect-[2/1] animate-slide-up delay-300 group cursor-pointer lg:hover:scale-[1.02] transition-transform">
+                            <div className="absolute top-0 w-full h-6 sm:h-8 bg-gray-800 flex items-center px-4 gap-1.5 sm:gap-2">
+                                <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-red-500"></div>
+                                <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-yellow-500"></div>
+                                <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-green-500"></div>
+                            </div>
+                            <img src="https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2070&auto=format&fit=crop" className="w-full h-full object-cover opacity-60 group-hover:opacity-50 transition-opacity" alt="Demo Interface" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20 shadow-lg sm:group-hover:scale-110 transition-transform duration-300">
+                                    <Icon name="play_arrow" className="text-4xl sm:text-5xl text-white ml-1" filled />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        };
+
+        const LocalHowItWorks = () => (
+            <section className="py-20 sm:py-32 bg-black text-white relative overflow-hidden border-t border-white/10">
+                {/* Background Pattern */}
+                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#ffffff_2px,transparent_2px)] [background-size:24px_24px] pointer-events-none"></div>
+
+                <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
+                    <div className="text-center max-w-3xl mx-auto mb-16 sm:mb-24">
+                        <h2 className="text-3xl md:text-5xl font-bold mb-6 font-display tracking-tight">
+                            From content to concept in <br className="hidden sm:block" />
+                            <span className="text-primary font-hand relative inline-block mt-2">
+                                3 simple steps
+                                <svg className="absolute -bottom-2 left-0 w-full h-3 text-primary/30" viewBox="0 0 100 10" preserveAspectRatio="none">
+                                    <path d="M0 5 Q 50 12 100 5" fill="none" stroke="currentColor" strokeWidth="2" />
+                                </svg>
+                            </span>
+                        </h2>
+                        <p className="text-gray-400 text-lg leading-relaxed max-w-2xl mx-auto">
+                            Stop spending hours creating slide decks. Let Studyfied do the heavy lifting so you can focus on teaching.
+                        </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-12 relative">
+                        {/* Connector Line (Desktop) */}
+                        <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-0.5 bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 border-t-2 border-dashed border-white/10"></div>
+
+                        {[
+                            { step: '01', title: 'Input Source', desc: 'Upload a PDF or paste a link. We strip the noise instantly.', icon: 'upload_file', color: 'bg-zinc-800', rotate: '-rotate-2' },
+                            { step: '02', title: 'AI Magic', desc: 'Our engine identifies concepts and sketches visuals live.', icon: 'auto_awesome', color: 'bg-primary', rotate: 'rotate-1' },
+                            { step: '03', title: 'Interactive Insight', desc: 'Get a clickable, hand-drawn lesson ready to share.', icon: 'lightbulb', color: 'bg-zinc-800', rotate: '-rotate-2' }
+                        ].map((s, i) => (
+                            <div key={i} className="relative flex flex-col items-center text-center group">
+                                <div className={`w-24 h-24 ${s.color} rounded-3xl ${s.rotate} group-hover:rotate-0 transition-transform duration-300 shadow-2xl shadow-black/50 flex items-center justify-center mb-8 relative z-10 border-4 border-black ring-1 ring-white/10`}>
+                                    <Icon name={s.icon} className="text-4xl text-white drop-shadow-md" filled />
+                                </div>
+                                <h3 className="text-2xl font-bold mb-3">{s.title}</h3>
+                                <p className="text-gray-400 leading-relaxed px-4 text-sm sm:text-base">{s.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+        );
+
+        const LandingPage = () => (
+            <div className="flex flex-col min-h-screen">
+                <Navbar />
+                <main className="flex-grow">
+                    <Hero />
+                    <LocalHowItWorks />
+                </main>
+                <footer className="bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-gray-800 py-12 safe-bottom">
+                    <div className="max-w-7xl mx-auto px-6 lg:px-8 text-center text-text-muted dark:text-text-muted-dark text-sm">
+                        <p className="mb-4 font-hand text-xl">Studyfied - Made for the hackathon.</p>
+                        <p>© 2026 Studyfied Inc.</p>
+                    </div>
+                </footer>
+            </div>
+        );
+
+        const SourceSelection = () => {
+            const navigate = useNavigate();
+            const handleSelect = (type) => navigate('/loading', { state: { stage: 'analysis', type } });
+
+            return (
+                <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col">
+                    <Navbar />
+                    <main className="flex-grow flex items-center justify-center p-4 sm:p-6 mt-16 sm:mt-20">
+                        <div className="w-full max-w-5xl">
+                            <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-center text-text-main dark:text-white mb-3 sm:mb-4">Choose your material</h2>
+                            <p className="text-center text-text-muted dark:text-text-muted-dark mb-8 sm:mb-12 max-w-xl mx-auto text-sm sm:text-base">We don't store your documents. Everything is processed in transient memory.</p>
+
+                            <div className="grid md:grid-cols-2 gap-6 lg:gap-12">
+                                <div onClick={() => handleSelect('pdf')} className="group cursor-pointer bg-white dark:bg-background-card-dark rounded-3xl p-6 sm:p-8 border-2 border-gray-100 dark:border-gray-700 hover:border-indigo-DEFAULT dark:hover:border-indigo-DEFAULT transition-all shadow-soft hover:shadow-hard-indigo relative overflow-hidden active:scale-[0.98]">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 dark:bg-indigo-900/20 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-110"></div>
+                                    <div className="relative z-10 flex flex-col h-full items-center text-center md:items-start md:text-left">
+                                        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-DEFAULT rounded-2xl flex items-center justify-center mb-4 sm:mb-6">
+                                            <Icon name="picture_as_pdf" className="text-2xl sm:text-3xl" />
+                                        </div>
+                                        <h3 className="text-xl sm:text-2xl font-bold text-text-main dark:text-white mb-2">Upload PDF</h3>
+                                        <p className="text-text-muted dark:text-text-muted-dark mb-6 sm:mb-8 text-sm sm:text-base">Textbooks, research papers, or lecture notes.</p>
+                                        <div className="mt-auto w-full border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-xl h-24 sm:h-32 flex flex-col items-center justify-center text-gray-400 group-hover:border-indigo-300 dark:group-hover:border-indigo-700 group-hover:bg-indigo-50/50 dark:group-hover:bg-indigo-900/20 transition-all">
+                                            <Icon name="cloud_upload" className="text-2xl sm:text-3xl mb-1 sm:mb-2" />
+                                            <span className="font-medium text-xs sm:text-sm">Tap to browse</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div onClick={() => handleSelect('url')} className="group cursor-pointer bg-white dark:bg-background-card-dark rounded-3xl p-6 sm:p-8 border-2 border-gray-100 dark:border-gray-700 hover:border-primary dark:hover:border-primary transition-all shadow-soft hover:shadow-hard-primary relative overflow-hidden active:scale-[0.98]">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary-light/20 dark:bg-primary/10 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-110"></div>
+                                    <div className="relative z-10 flex flex-col h-full items-center text-center md:items-start md:text-left">
+                                        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-orange-100 dark:bg-orange-900/20 text-primary rounded-2xl flex items-center justify-center mb-4 sm:mb-6">
+                                            <Icon name="link" className="text-2xl sm:text-3xl" />
+                                        </div>
+                                        <h3 className="text-xl sm:text-2xl font-bold text-text-main dark:text-white mb-2">Paste Link</h3>
+                                        <p className="text-text-muted dark:text-text-muted-dark mb-6 sm:mb-8 text-sm sm:text-base">Wikipedia, Medium, or any public article URL.</p>
+                                        <div className="mt-auto w-full">
+                                            <div className="flex bg-gray-50 dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-gray-600 p-2 group-focus-within:ring-2 ring-primary/20 transition-all">
+                                                <div className="bg-transparent w-full px-3 text-text-main dark:text-white py-2 text-sm text-left text-gray-400">https://...</div>
+                                                <button className="bg-primary text-white p-2 rounded-lg">
+                                                    <Icon name="arrow_forward" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const ProcessingScreen = () => {
+            const navigate = useNavigate();
+            const location = useLocation();
+            const { stage = 'analysis' } = location.state || {}; // 'analysis' | 'generation'
+
+            useEffect(() => {
+                const nextPath = stage === 'analysis' ? '/topics' : '/workspace';
+                const duration = stage === 'analysis' ? 3000 : 5000; // Generation takes a bit longer
+                const timer = setTimeout(() => navigate(nextPath), duration);
+                return () => clearTimeout(timer);
+            }, [navigate, stage]);
+
+            const steps = stage === 'analysis'
+                ? ['Connecting to Librarian Agent...', 'Parsing Semantic Structure...', 'Identifying Key Topics...']
+                : ['Activating Image Steering Agent...', 'Synthesizing Assets (Parallel Execution)...', 'Director Composing Scene Plan...'];
+
+            const title = stage === 'analysis' ? 'Analyzing Content...' : 'Generating Lesson...';
+            const icon = stage === 'analysis' ? 'library_books' : 'brush';
+
+            return (
+                <div className="h-screen bg-background-light dark:bg-background-dark flex flex-col items-center justify-center p-6 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-50/50 via-transparent to-transparent dark:from-indigo-900/20"></div>
+                    <div className="relative z-10 text-center max-w-xl w-full">
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto bg-white dark:bg-slate-800 rounded-3xl shadow-xl flex items-center justify-center mb-6 sm:mb-8 relative">
+                            <div className="absolute inset-0 border-4 border-indigo-DEFAULT rounded-3xl animate-[spin_3s_linear_infinite]" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 20%, 0 20%)' }}></div>
+                            <Icon name={icon} className="text-3xl sm:text-4xl text-indigo-DEFAULT animate-pulse" filled />
+                        </div>
+                        <h2 className="text-2xl sm:text-3xl font-bold text-text-main dark:text-white mb-4 animate-slide-up">{title}</h2>
+                        <div className="space-y-3 max-w-sm mx-auto text-left">
+                            {steps.map((step, i) => (
+                                <div key={i} className="flex items-center gap-3 text-text-muted dark:text-text-muted-dark animate-slide-up" style={{ animationDelay: `${0.2 + (i * 0.5)}s` }}>
+                                    <div className="w-5 h-5 min-w-[20px] rounded-full border-2 border-primary flex items-center justify-center">
+                                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }}></div>
+                                    </div>
+                                    <span className="font-mono text-sm">{step}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const TopicSelection = () => {
+            const navigate = useNavigate();
+            const topics = [
+                {
+                    id: 1,
+                    title: "Bernoulli's Equation Usage",
+                    desc: "Derivation and application in fluid dynamics. Explains P + 1/2ρv².",
+                    tags: ['Core Concept', 'Math Heavy'],
+                    duration: '3 min',
+                    recommended: true
+                },
+                {
+                    id: 2,
+                    title: "The Venturi Effect",
+                    desc: "How pressure drops when fluid velocity increases in a constricted pipe.",
+                    tags: ['Application', 'Visual'],
+                    duration: '2 min',
+                    recommended: false
+                },
+                {
+                    id: 3,
+                    title: "Real-world Examples",
+                    desc: "Carburetors, atomizers, and airplane wings explained.",
+                    tags: ['Case Study', 'Easy'],
+                    duration: '4 min',
+                    recommended: false
+                }
+            ];
+
+            const handleSelect = (topic) => {
+                navigate('/loading', { state: { stage: 'generation' } });
+            };
+
+            return (
+                <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col">
+                    <Navbar />
+                    <main className="flex-grow flex flex-col items-center p-4 sm:p-6 mt-16 sm:mt-20">
+                        <div className="max-w-4xl w-full">
+                            <div className="text-center mb-10 sm:mb-12">
+                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-bold mb-4">
+                                    <Icon name="check_circle" className="text-sm" filled /> Librarian Agent Analysis Complete
+                                </div>
+                                <h2 className="text-2xl sm:text-4xl font-display font-bold text-text-main dark:text-white mb-3">Choose a Learning Path</h2>
+                                <p className="text-text-muted dark:text-text-muted-dark max-w-xl mx-auto">We found 3 distinct concepts in your document. Which one do you want to start with?</p>
+                            </div>
+
+                            <div className="grid md:grid-cols-3 gap-6">
+                                {topics.map((topic) => (
+                                    <div key={topic.id} className={`bg-white dark:bg-background-card-dark rounded-2xl p-6 border-2 transition-all hover:-translate-y-1 shadow-soft hover:shadow-lg flex flex-col ${topic.recommended ? 'border-primary ring-4 ring-primary/10' : 'border-gray-100 dark:border-gray-700 hover:border-indigo-300'}`}>
+                                        {topic.recommended && (
+                                            <div className="mb-4 -mt-2 -ml-2">
+                                                <span className="bg-primary text-white text-[10px] uppercase font-bold px-2 py-1 rounded tracking-wider">Recommended</span>
+                                            </div>
+                                        )}
+                                        <h3 className="text-xl font-bold text-text-main dark:text-white mb-2 leading-tight">{topic.title}</h3>
+                                        <p className="text-sm text-text-muted dark:text-text-muted-dark mb-4 flex-grow">{topic.desc}</p>
+
+                                        <div className="flex flex-wrap gap-2 mb-6">
+                                            {topic.tags.map(tag => (
+                                                <span key={tag} className="px-2 py-1 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 text-xs rounded-md font-medium">{tag}</span>
+                                            ))}
+                                        </div>
+
+                                        <div className="mt-auto flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800">
+                                            <div className="flex items-center gap-1 text-xs font-mono text-gray-500">
+                                                <Icon name="schedule" className="text-sm" /> {topic.duration}
+                                            </div>
+                                            <button onClick={() => handleSelect(topic)} className={`p-2 rounded-lg transition-colors ${topic.recommended ? 'bg-primary text-white hover:bg-primary-hover' : 'bg-gray-100 hover:bg-indigo-100 text-gray-900'}`}>
+                                                <Icon name="arrow_forward" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const Workspace = () => {
+            const navigate = useNavigate();
+            const [isPlaying, setIsPlaying] = useState(false);
+            const [transcriptOpen, setTranscriptOpen] = useState(window.innerWidth > 768);
+
+            // Scribble State (FR9)
+            const [isScribbleMode, setIsScribbleMode] = useState(false);
+            const [lines, setLines] = useState([]);
+            const [currentLine, setCurrentLine] = useState([]);
+            const [showAI, setShowAI] = useState(true);
+            const [showNotes, setShowNotes] = useState(true);
+            const [layersOpen, setLayersOpen] = useState(false);
+            const svgRef = useRef(null);
+
+            // Clear scribbles on resume (FR9 Compliance)
+            useEffect(() => {
+                if (isPlaying) {
+                    setLines([]);
+                    setIsScribbleMode(false);
+                }
+            }, [isPlaying]);
+
+            // Responsive transcript default
+            useEffect(() => {
+                const handleResize = () => {
+                    if (window.innerWidth <= 768) setTranscriptOpen(false);
+                    else setTranscriptOpen(true);
+                };
+                window.addEventListener('resize', handleResize);
+                return () => window.removeEventListener('resize', handleResize);
+            }, []);
+
+            // Drawing Handlers
+            const getPoint = (e) => {
+                const svg = svgRef.current;
+                if (!svg) return { x: 0, y: 0 };
+                const point = svg.createSVGPoint();
+                // Handle both mouse and touch events
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                point.x = clientX;
+                point.y = clientY;
+                const transformed = point.matrixTransform(svg.getScreenCTM().inverse());
+                return { x: transformed.x, y: transformed.y };
+            };
+
+            const startDrawing = (e) => {
+                if (!isScribbleMode || isPlaying) return;
+                const { x, y } = getPoint(e);
+                setCurrentLine([{ x, y }]);
+            };
+
+            const draw = (e) => {
+                if (!isScribbleMode || isPlaying || currentLine.length === 0) return;
+                const { x, y } = getPoint(e);
+                setCurrentLine(prev => [...prev, { x, y }]);
+            };
+
+            const endDrawing = () => {
+                if (!isScribbleMode || isPlaying || currentLine.length === 0) return;
+                setLines(prev => [...prev, currentLine]);
+                setCurrentLine([]);
+            };
+
+            // Convert points to SVG path d attribute
+            const pointsToPath = (points) => {
+                if (points.length === 0) return '';
+                const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                return d;
+            };
+
+            return (
+                <div className="fixed inset-0 flex flex-col bg-background-light dark:bg-background-dark overflow-hidden safe-bottom">
+                    {/* Compact Toolbar for Mobile */}
+                    <header className="h-14 sm:h-16 bg-white dark:bg-background-card-dark border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-3 sm:px-6 z-30 shrink-0">
+                        {/* ... (Left side unchanged) */}
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => navigate('/')} className="hover:bg-gray-100 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors -ml-2">
+                                <Icon name="arrow_back" className="text-text-muted dark:text-text-muted-dark" />
+                            </button>
+                            <div className="flex flex-col">
+                                <h1 className="text-sm font-bold text-text-main dark:text-white flex items-center gap-2 truncate max-w-[150px] sm:max-w-xs">
+                                    <Icon name="description" className="text-primary text-base hidden sm:block" />
+                                    Bernoulli's Principle
+                                </h1>
+                                <p className="text-[10px] sm:text-xs text-text-muted dark:text-text-muted-dark hidden sm:block">Fluid Dynamics • 3 min lesson</p>
+                            </div>
+                        </div>
+
+                        {/* Player Controls (Desktop) */}
+                        <div className="hidden md:flex items-center gap-4 bg-gray-50 dark:bg-slate-900 px-4 py-2 rounded-xl">
+                            <button className="text-text-muted hover:text-zinc-900 dark:hover:text-white"><Icon name="skip_previous" /></button>
+                            <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-primary hover:bg-primary-hover text-white rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-95">
+                                <Icon name={isPlaying ? "pause" : "play_arrow"} filled />
+                            </button>
+                            <button className="text-text-muted hover:text-zinc-900 dark:hover:text-white"><Icon name="skip_next" /></button>
+                            <span className="text-xs font-mono font-medium text-text-main dark:text-white border-l border-gray-300 dark:border-gray-600 pl-4 ml-2">01:24 / 03:00</span>
+                        </div>
+
+                        <div className="flex items-center gap-2 relative">
+                            {/* Layer Toggle (FR13) */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setLayersOpen(!layersOpen)}
+                                    className={`p-2 rounded-lg transition-colors ${layersOpen ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white' : 'text-text-muted hover:bg-gray-100'}`}
+                                    title="Layer Controls"
+                                >
+                                    <Icon name="layers" />
+                                </button>
+                                {layersOpen && (
+                                    <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 p-2 z-50 animate-fade-in">
+                                        <div className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase px-2 py-1 mb-1">Visibility</div>
+                                        <button onClick={() => setShowAI(!showAI)} className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 text-sm">
+                                            <span className="flex items-center gap-2"><Icon name="auto_awesome" className="text-primary text-sm" /> AI Drawings</span>
+                                            <Icon name={showAI ? "visibility" : "visibility_off"} className="text-gray-400 text-sm" />
+                                        </button>
+                                        <button onClick={() => setShowNotes(!showNotes)} className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 text-sm">
+                                            <span className="flex items-center gap-2"><Icon name="edit" className="text-secondary text-sm" /> My Notes</span>
+                                            <Icon name={showNotes ? "visibility" : "visibility_off"} className="text-gray-400 text-sm" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Scribble Toggle (FR9) */}
+                            <button
+                                onClick={() => {
+                                    if (isPlaying) setIsPlaying(false);
+                                    setIsScribbleMode(!isScribbleMode);
+                                }}
+                                className={`p-2 rounded-lg transition-colors border ${isScribbleMode ? 'bg-primary text-white border-primary' : 'text-text-muted hover:bg-gray-100 dark:hover:bg-gray-800 border-transparent'}`}
+                                title="Draw on Canvas"
+                            >
+                                <Icon name="edit" filled={isScribbleMode} />
+                            </button>
+
+                            <span className="text-[10px] sm:hidden font-mono text-text-muted">01:24</span>
+                            <button onClick={() => setTranscriptOpen(!transcriptOpen)} className={`p-2 rounded-lg transition-colors ${transcriptOpen ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white' : 'text-text-muted hover:bg-gray-100'}`}>
+                                <Icon name="subtitles" />
+                            </button>
+                            <button className="btn-primary py-1.5 px-3 shadow-none text-xs hidden sm:flex">
+                                <Icon name="share" className="text-sm" /> Share
+                            </button>
+                        </div>
+                    </header>
+
+                    <div className="flex-grow flex relative overflow-hidden">
+                        {/* Main Canvas Area - Preserves Aspect Ratio */}
+                        <main className="flex-grow flex flex-col relative bg-gray-100 dark:bg-black/50 overflow-hidden w-full">
+                            <div className="flex-1 flex items-center justify-center p-2 sm:p-4 md:p-6 lg:p-8 w-full h-full">
+                                <div className="relative w-full max-w-5xl aspect-video bg-white dark:bg-[#1e1e1e] shadow-2xl rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden group select-none">
+
+                                    {/* Simulated Hand Drawn Canvas + Scribble Layer */}
+                                    <svg
+                                        ref={svgRef}
+                                        className={`w-full h-full ${isScribbleMode ? 'cursor-crosshair' : 'cursor-default'}`}
+                                        viewBox="0 0 800 450"
+                                        preserveAspectRatio="xMidYMid meet"
+                                        onMouseDown={startDrawing}
+                                        onMouseMove={draw}
+                                        onMouseUp={endDrawing}
+                                        onMouseLeave={endDrawing}
+                                        onTouchStart={startDrawing}
+                                        onTouchMove={draw}
+                                        onTouchEnd={endDrawing}
+                                    >
+                                        <defs>
+                                            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                                                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
+                                            </pattern>
+                                        </defs>
+                                        <rect width="800" height="450" fill="url(#grid)" />
+
+                                        {/* Drawing Elements - AI Layer (FR13) */}
+                                        <g style={{ opacity: showAI ? 1 : 0.1, transition: 'opacity 0.3s' }} stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" className="text-slate-800 dark:text-slate-200 pointer-events-none">
+                                            <path d="M 100 200 L 300 200 C 350 200 350 150 400 150 L 700 150" strokeWidth="4" />
+                                            <path d="M 100 300 L 300 300 C 350 300 350 250 400 250 L 700 250" strokeWidth="4" />
+                                            <circle cx="200" cy="250" r="4" className="fill-blue-500 stroke-none animate-[ping_1.5s_linear_infinite]" />
+                                            <circle cx="250" cy="220" r="4" className="fill-blue-500 stroke-none animate-[ping_1.5s_linear_infinite]" style={{ animationDelay: '0.2s' }} />
+                                            <circle cx="500" cy="200" r="4" className="fill-blue-500 stroke-none animate-[ping_0.8s_linear_infinite]" />
+                                        </g>
+                                        <g style={{ opacity: showAI ? 1 : 0, transition: 'opacity 0.3s' }}>
+                                            <text x="150" y="350" fontFamily="'Patrick Hand', cursive" fontSize="24" fill="currentColor" className="text-text-muted dark:text-text-muted-dark pointer-events-none">High Pressure (P₁)</text>
+                                            <text x="500" y="300" fontFamily="'Patrick Hand', cursive" fontSize="24" fill="currentColor" className="text-text-muted dark:text-text-muted-dark pointer-events-none">Low Pressure (P₂)</text>
+                                        </g>
+
+                                        {/* Scribble Layer (FR9) - User Notes (FR13) */}
+                                        <g style={{ opacity: showNotes ? 1 : 0, transition: 'opacity 0.3s' }} stroke="#f45c25" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                                            {lines.map((line, i) => (
+                                                <path key={i} d={pointsToPath(line)} />
+                                            ))}
+                                            {currentLine.length > 0 && (
+                                                <path d={pointsToPath(currentLine)} />
+                                            )}
+                                        </g>
+                                    </svg>
+
+                                    {/* HTML Overlays (Better for Mobile) */}
+                                    {/* 1. Quiz Overlay - Centered - Hide if drawing */}
+                                    {!isPlaying && !isScribbleMode && lines.length === 0 && (
+                                        <div className="absolute inset-0 z-10 flex items-center justify-center p-4">
+                                            <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md p-4 sm:p-6 rounded-2xl border-2 border-secondary shadow-xl max-w-sm w-full animate-slide-up transform rotate-1">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="bg-secondary text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded tracking-wider">Pop Quiz</span>
+                                                    <span className="text-sm font-bold text-text-main dark:text-white">Review Concept</span>
+                                                </div>
+                                                <h3 className="font-bold text-lg mb-4 text-text-main dark:text-white leading-tight">What happens to velocity in the narrow section?</h3>
+                                                <div className="space-y-2">
+                                                    {['Velocity Decreases', 'Velocity Increases'].map((opt, i) => (
+                                                        <button key={i} className="w-full text-left px-4 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-primary/10 hover:text-primary dark:hover:text-primary text-sm font-medium border border-transparent hover:border-primary transition-all active:scale-98">
+                                                            {String.fromCharCode(65 + i)}. {opt}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 2. Play/Pause Overlay - Full Coverage - Hide if drawing */}
+                                    {!isPlaying && !isScribbleMode && (
+                                        <div
+                                            className="absolute inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-[2px] flex items-center justify-center cursor-pointer transition-all hover:bg-black/30 dark:hover:bg-black/50 z-20"
+                                            onClick={() => setIsPlaying(true)}
+                                        >
+                                            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-primary/90 text-white rounded-full flex items-center justify-center shadow-2xl transform transition-transform duration-300 hover:scale-110 hover:bg-primary">
+                                                <Icon name="play_arrow" className="text-4xl sm:text-5xl ml-1" filled />
+                                            </div>
+                                            <div className="absolute bottom-6 text-white font-medium bg-black/50 px-3 py-1 rounded-full text-xs sm:text-sm backdrop-blur-md">
+                                                Tap to resume
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Mobile Controls Overlay (Bottom of canvas) */}
+                                    {isPlaying && (
+                                        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 md:hidden">
+                                            <div className="flex items-center justify-between text-white">
+                                                <button onClick={(e) => { e.stopPropagation(); setIsPlaying(false); }}><Icon name="pause" filled /></button>
+                                                <input type="range" className="w-full mx-4 h-1 bg-white/30 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" />
+                                                <span className="text-xs font-mono">01:24</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </main>
+
+                        {/* Transcript Sidebar - Responsive Drawer */}
+                        <aside className={`
+                            absolute inset-y-0 right-0 w-full sm:w-80 bg-white dark:bg-background-card-dark border-l border-gray-200 dark:border-gray-700 
+                            transform transition-transform duration-300 ease-in-out z-40 shadow-2xl md:shadow-none md:relative md:transform-none
+                            ${transcriptOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0 md:hidden'}
+                        `}>
+                            <div className="h-full flex flex-col">
+                                <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-slate-900/50">
+                                    <h3 className="font-bold text-xs uppercase tracking-widest text-text-muted flex items-center gap-2">
+                                        <Icon name="subtitles" className="text-base" /> Transcript
+                                    </h3>
+                                    <button className="md:hidden p-2 text-text-muted hover:text-text-main" onClick={() => setTranscriptOpen(false)}>
+                                        <Icon name="close" />
+                                    </button>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                                    <div className="opacity-50 hover:opacity-100 transition-opacity">
+                                        <span className="text-xs font-mono text-zinc-900 dark:text-zinc-500 mb-1 block">00:45</span>
+                                        <p className="text-sm text-text-main dark:text-white leading-relaxed">Imagine water flowing through a wide pipe that suddenly gets narrower.</p>
+                                    </div>
+                                    <div className="relative pl-4 border-l-2 border-primary bg-primary/5 dark:bg-primary/10 -mx-4 px-8 py-3">
+                                        <span className="text-xs font-mono text-primary mb-1 block font-bold">01:24</span>
+                                        <p className="text-sm font-medium text-text-main dark:text-white leading-relaxed">
+                                            According to the continuity equation, the same amount of water must pass through, so it <span className="text-secondary font-hand text-lg">speeds up</span>.
+                                        </p>
+                                    </div>
+                                    <div className="opacity-50 hover:opacity-100 transition-opacity">
+                                        <span className="text-xs font-mono text-zinc-900 dark:text-zinc-500 mb-1 block">01:50</span>
+                                        <p className="text-sm text-text-main dark:text-white leading-relaxed">But here's the counter-intuitive part: as velocity increases, the pressure actually drops.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </aside>
+
+                        {/* Backdrop for mobile drawer */}
+                        {transcriptOpen && (
+                            <div className="md:hidden absolute inset-0 bg-black/20 backdrop-blur-[1px] z-30" onClick={() => setTranscriptOpen(false)}></div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            return (
+                <HashRouter>
+                    <Routes>
+                        <Route path="/" element={<LandingPage />} />
+                        <Route path="/select-source" element={<SourceSelection />} />
+                        <Route path="/loading" element={<ProcessingScreen />} />
+                        <Route path="/topics" element={<TopicSelection />} />
+                        <Route path="/workspace" element={<Workspace />} />
+                    </Routes>
+                </HashRouter>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+    </script>
+</body>
+
+</html>
