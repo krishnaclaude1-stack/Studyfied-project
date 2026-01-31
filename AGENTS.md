@@ -190,10 +190,10 @@ All errors follow this structure:
    git clone <repository-url>
    cd studyfied
    cp .env.example .env
-   # Edit .env and add your API keys:
-   # - GEMINI_API_KEY (Google Gemini)
-   # - NANO_BANANA_API_KEY (Image generation)
-   # - ELEVENLABS_API_KEY (TTS)
+   # Edit .env and add your API keys (no quotes):
+   # GEMINI_API_KEY=your_key_here
+   # NANO_BANANA_API_KEY=your_key_here
+   # ELEVENLABS_API_KEY=your_key_here
    ```
 
 2. **Start services**:
@@ -215,12 +215,18 @@ All errors follow this structure:
    ```bash
    docker-compose exec frontend npm install <package>
    docker-compose exec backend pip install <package>
+   # Then update package.json or requirements.txt accordingly
    ```
 
 5. **Stop services**:
    ```bash
    docker-compose down       # Stop containers
-   docker-compose down -v    # Stop and remove volumes
+   docker-compose down -v    # Stop and remove volumes (including node_modules)
+   ```
+
+6. **Rebuild after dependency changes**:
+   ```bash
+   docker-compose up --build  # Rebuild images with new dependencies
    ```
 
 ### Local Development (No Docker)
@@ -246,9 +252,38 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```bash
 # Backend tests (pytest)
 docker-compose exec backend pytest
+# Or with coverage
+docker-compose exec backend pytest --cov=app --cov-report=html
 
 # Frontend tests (vitest)
 docker-compose exec frontend npm test
+# Or with coverage
+docker-compose exec frontend npm run test:coverage
+```
+
+### Common Development Tasks
+
+```bash
+# Lint frontend code
+docker-compose exec frontend npm run lint
+
+# Build frontend for production
+docker-compose exec frontend npm run build
+
+# Check backend API documentation
+# Open browser to http://localhost:8000/docs
+
+# Access Python shell in backend container
+docker-compose exec backend python
+
+# Access Node shell in frontend container
+docker-compose exec frontend npm run dev
+
+# Restart a single service
+docker-compose restart backend
+
+# View service status
+docker-compose ps
 ```
 
 ## Service Architecture
@@ -350,6 +385,12 @@ Custom exceptions in `backend/app/services/exceptions.py`:
 
 **Implementation Location**: `AIDirectorService.generate_lesson_manifest()` - Each narration segment has a `checkpointId` that aligns with visual events
 
+**Data Flow**:
+1. Backend generates lesson manifest with synchronized checkpoints
+2. Frontend types in `frontend/src/types/lesson.ts` mirror backend Pydantic schemas
+3. Zustand stores manage playback state (`playerStore.ts`) and lesson data (`lessonStore.ts`)
+4. Visual events trigger at specific checkpoint timestamps during audio playback
+
 ### Asset Pipeline
 
 **Process**:
@@ -359,7 +400,11 @@ Custom exceptions in `backend/app/services/exceptions.py`:
 4. Transparent PNGs are stored in IndexedDB as Blobs
 5. Konva canvas injects Blobs as Image nodes
 
-**Reference**: `docs/asset_pipeline_lessons_learned.md` (check if exists)
+**Technical Details**:
+- Images are fetched as base64 or URLs from backend
+- Frontend converts to Blob and stores in IndexedDB using `idb-keyval`
+- Blob URLs are created for rendering: `URL.createObjectURL(blob)`
+- Konva Image nodes use these blob URLs as `src` property
 
 ### State Management
 
@@ -394,29 +439,71 @@ Custom exceptions in `backend/app/services/exceptions.py`:
 1. **Always use async/await**: Use `asyncio.to_thread()` to wrap blocking sync calls
 2. **Validate AI output**: Parse all LLM responses through Pydantic before returning
 3. **Implement retry logic**: One automatic retry for JSON/validation errors
-4. **Use structured exceptions**: Custom exceptions with descriptive error codes
+4. **Use structured exceptions**: Custom exceptions with descriptive error codes (see `backend/app/services/exceptions.py`)
 5. **Log appropriately**: Use logging module, not print statements
 6. **Service singletons**: Module-level service instances for performance (stateless for request data)
 7. **Session management**: Shared HTTP sessions in singletons must not be closed per-request (race condition risk)
 8. **Pydantic validation**: Use `max_length` constraints carefully - they prevent graceful handling of excess data
+9. **Settings pattern**: Use `@lru_cache` decorator for settings instances (see `backend/app/core/config.py`)
+10. **Router organization**: Group related endpoints in routers (health, analyze, generate_assets, generate_lesson)
 
 ### Frontend Development
 
 1. **Feature-based organization**: Use `/src/features/{domain}` for related components
 2. **Reusable components**: Extract common UI to `/src/shared`
 3. **Type safety**: Use TypeScript strict mode for all files
-4. **React Query**: Wrap all async operations for automatic caching/refetching
-5. **Zustand stores**: Keep state management focused and composable
-6. **IndexedDB for assets**: Use idb-keyval wrapper in `/src/lib/db.ts`
-7. **Konva best practices**: Reference canvas utilities in `/src/lib/konva-utils`
+4. **Type alignment**: TypeScript types in `frontend/src/types/` must match backend Pydantic schemas (camelCase)
+5. **React Query**: Wrap all async operations for automatic caching/refetching
+6. **Zustand stores**: Keep state management focused and composable (separate stores for lesson, player, annotations)
+7. **IndexedDB for assets**: Use idb-keyval wrapper in `/src/lib/db.ts`
+8. **Konva best practices**: Reference canvas utilities in `/src/lib/konva-utils`
+9. **Component organization**: `.tsx` for React components, `.ts` for utilities
+10. **Export pattern**: Use barrel exports (`index.ts`) for feature modules
+11. **Tailwind v4 compliance**: Follow semantic utility classes from `tailwindv4.md` (see CSS & Styling section below)
 
 ### Code Style
 
-1. **ESLint**: Run `npm lint` before committing frontend code
+1. **ESLint**: Run `npm run lint` before committing frontend code
 2. **Type annotations**: Explicit return types on all functions
 3. **Comments**: Docstrings on services and public APIs (reference docs/prompt-spec.md when applicable)
 4. **No hardcoding**: Use configuration files or environment variables
 5. **Error handling**: Never silently fail; always log and return structured errors
+6. **Imports**: Use absolute imports where configured, group by external/internal
+
+### CSS & Styling (Tailwind v4)
+
+**This project uses Tailwind v4 with the Theme-First Strategy. Follow these rules strictly:**
+
+1. **Use semantic utilities**: `bg-primary`, `text-danger`, `border-success` (defined in `@theme` block)
+2. **Never use arbitrary color values**: Avoid `bg-[#3b82f6]` or `text-[var(--color-primary)]`
+3. **Opacity modifiers work automatically**: Use `bg-primary/90`, `text-danger/80` instead of defining separate shades
+4. **Import syntax**: Use `@import "tailwindcss";` (not the old `@tailwind` directives)
+5. **Theme definition**: All colors, fonts, spacing go in `@theme` block in `frontend/src/index.css`
+6. **Standard grays are OK**: Using `bg-gray-50`, `text-gray-600` is acceptable (Tailwind defaults)
+
+**Theme Colors (defined in `frontend/src/index.css`):**
+- `primary` (#3b82f6) - Main brand color for buttons, links, accents
+- `secondary` (#8b5cf6) - Secondary brand color
+- `accent` (#3b82f6) - Accent color for highlights
+- `danger` (#ef4444) - Error states, destructive actions
+- `success` (#10b981) - Success states, confirmations
+- `warning` (#f59e0b) - Warning states, cautions
+- `info` (#06b6d4) - Informational messages
+
+**Examples:**
+```tsx
+// ✅ CORRECT - Semantic utilities with opacity modifiers
+<button className="bg-primary hover:bg-primary/90 text-white">Click Me</button>
+<div className="border border-danger/20 text-danger">Error message</div>
+<input className="accent-primary" type="range" />
+
+// ❌ WRONG - Hardcoded colors or arbitrary values
+<button className="bg-blue-600 hover:bg-blue-700">Click Me</button>
+<div className="border border-[#ef444420]">Error message</div>
+<input className="accent-[#3b82f6]" type="range" />
+```
+
+**Reference**: See `tailwindv4.md` for complete Tailwind v4 guidelines and migration notes
 
 ## Useful Documentation References
 
@@ -455,22 +542,29 @@ Custom exceptions in `backend/app/services/exceptions.py`:
 1. **Check logs**: `docker-compose logs -f backend`
 2. **API Docs**: Open http://localhost:8000/docs for interactive Swagger UI
 3. **Test endpoints**: Use curl or Postman to test individual endpoints
-4. **Environment variables**: Verify .env file has all required API keys
+4. **Environment variables**: Verify .env file has all required API keys (GEMINI_API_KEY, NANO_BANANA_API_KEY, ELEVENLABS_API_KEY)
 5. **Python errors**: Full traceback appears in logs with async context
+6. **Health check**: Verify `/api/health` returns `{"status": "ok"}` before debugging other endpoints
+7. **Pydantic validation errors**: Check if LLM output matches expected schema in `backend/app/schemas/`
 
 ### Frontend Issues
 
 1. **Dev console**: Browser DevTools (F12) for JS errors
-2. **Network tab**: Check API requests/responses
+2. **Network tab**: Check API requests/responses (should show `/api/*` proxied to backend)
 3. **Vite HMR**: Hot module replacement should work; check console for issues
 4. **Build errors**: Run `npm run build` locally to catch TypeScript issues
+5. **Type mismatches**: Ensure frontend types match backend schema (camelCase conversion)
+6. **Zustand DevTools**: Install Redux DevTools extension for state inspection
 
 ### Common Issues
 
 - **Backend won't start**: Check if port 8000 is already in use or health check is failing
-- **Frontend won't connect**: Verify proxy URL in `vite.config.ts` matches backend address
-- **API keys not working**: Ensure .env file exists and is properly formatted
+- **Frontend won't connect**: Verify proxy URL in `vite.config.ts` matches backend address (default: `http://backend:8000`)
+- **API keys not working**: Ensure .env file exists in root directory and is properly formatted (no quotes around values)
 - **Dependency conflicts**: Try `npm ci` (frontend) or remove `venv` and reinstall (backend)
+- **CORS errors**: Verify `CORS_ORIGINS` in docker-compose.yml matches frontend URL
+- **Docker build fails**: Check if volumes are properly mounted in docker-compose.yml
+- **Module not found**: Ensure dependencies are installed inside containers with `docker-compose exec {service} npm install` or `pip install`
 
 ## Contributing Guidelines
 
@@ -510,7 +604,44 @@ For questions about this guide or project architecture:
 - Nano Banana polling: ~2-2.5 minutes max with exponential backoff (30 attempts)
 - Initial interval: 2s, backoff: 1.2x, max interval: 5s
 
+## Quick Reference
+
+### Key Commands
+
+| Task | Command |
+|------|---------|
+| Start all services | `docker-compose up --build` |
+| Stop all services | `docker-compose down` |
+| View logs | `docker-compose logs -f [service]` |
+| Install package (frontend) | `docker-compose exec frontend npm install <pkg>` |
+| Install package (backend) | `docker-compose exec backend pip install <pkg>` |
+| Lint frontend | `docker-compose exec frontend npm run lint` |
+| Run tests (backend) | `docker-compose exec backend pytest` |
+| Run tests (frontend) | `docker-compose exec frontend npm test` |
+
+### Important URLs
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Frontend | http://localhost:5173 | React application |
+| Backend API | http://localhost:8000 | FastAPI backend |
+| API Docs | http://localhost:8000/docs | Interactive Swagger UI |
+| Health Check | http://localhost:8000/api/health | Service health status |
+
+### Key Files Reference
+
+| File | Purpose |
+|------|---------|
+| `backend/app/main.py` | FastAPI app setup, CORS config, router registration |
+| `backend/app/core/config.py` | Environment settings with `@lru_cache` |
+| `backend/app/schemas/__init__.py` | CamelCaseModel base class for API contracts |
+| `backend/app/services/exceptions.py` | Custom exception hierarchy |
+| `frontend/src/types/lesson.ts` | TypeScript types matching backend schemas |
+| `frontend/vite.config.ts` | Vite config with API proxy setup |
+| `docs/prompt-spec.md` | Complete AI prompt specifications |
+| `docs/architecture.md` | Architecture decisions and rationale |
+
 ---
 
 **Last Updated**: 2026-01-31
-**Document Version**: 1.1
+**Document Version**: 1.2

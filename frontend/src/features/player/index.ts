@@ -9,3 +9,4 @@ export { AudioPlayer } from './AudioPlayer';
 export { PlaybackControls } from './PlaybackControls';
 export { CanvasRenderer } from './CanvasRenderer';
 export { AssetRenderer } from './AssetRenderer';
+export { Transcript } from './Transcript';
