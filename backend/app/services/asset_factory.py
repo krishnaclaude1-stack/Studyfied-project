@@ -126,22 +126,18 @@ class AssetFactoryService:
             for index, prompt in enumerate(image_prompts)
         ]
         
-        try:
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Check for exceptions and collect results
-            processed_results: list[bytes] = []
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    logger.error(f"Asset {i} generation failed: {result}")
-                    raise result
-                processed_results.append(result)
-            
-            logger.info(f"Successfully generated {len(processed_results)} assets")
-            return processed_results
-            
-        finally:
-            await self.close()
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Check for exceptions and collect results
+        processed_results: list[bytes] = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Asset {i} generation failed: {result}")
+                raise result
+            processed_results.append(result)
+        
+        logger.info(f"Successfully generated {len(processed_results)} assets")
+        return processed_results
     
     async def _generate_single_asset(self, prompt: str, index: int) -> bytes:
         """
@@ -342,7 +338,7 @@ class AssetFactoryService:
         """
         Process image with OpenCV HSV Smart Key to remove white background.
         
-        Preserves teal (H: 160-180) and orange (H: 10-25) accent colors
+        Preserves teal (H: 80-100) and orange (H: 10-25) accent colors
         while making the white background transparent.
         
         Args:

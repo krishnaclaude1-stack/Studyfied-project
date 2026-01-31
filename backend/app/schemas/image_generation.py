@@ -28,10 +28,9 @@ class ImageSteeringResponse(CamelCaseModel):
     
     storyboard_overview: StoryboardOverview = Field(..., description="Overview of visual flow")
     images: list[ImagePromptItem] = Field(
-        ..., 
+        ...,
         min_length=1,
-        max_length=5,
-        description="List of exactly 5 image prompts"
+        description="List of image prompts (service enforces exactly 5)"
     )
 
 

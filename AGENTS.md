@@ -59,16 +59,18 @@ studyfied/
 │       │   └── config.py        # Settings from environment variables
 │       ├── routers/
 │       │   ├── health.py        # GET /api/health liveness check
-│       │   └── analyze.py       # POST /api/v1/analyze* endpoints
+│       │   ├── analyze.py       # POST /api/v1/analyze* endpoints
+│       │   └── generate_assets.py  # POST /api/v1/generate-* endpoints
 │       ├── schemas/
 │       │   ├── __init__.py      # CamelCaseModel base class
-│       │   └── analyze.py       # Pydantic models for analyze endpoint
+│       │   ├── analyze.py       # Pydantic models for analyze endpoint
+│       │   └── image_generation.py  # Pydantic models for image generation
 │       └── services/
 │           ├── content_ingestor.py     # URL/PDF extraction + validation
 │           ├── librarian.py            # Topic extraction via Gemini
+│           ├── image_steering.py       # Image prompt generation via Gemini
+│           ├── asset_factory.py        # Image generation via Nano Banana + OpenCV
 │           ├── ai_director.py          # Lesson script generation (TODO)
-│           ├── asset_factory.py        # Image generation (TODO)
-│           ├── image_steering.py       # Image prompt generation (TODO)
 │           ├── tts_service.py          # Audio generation (TODO)
 │           └── exceptions.py           # Custom exception hierarchy
 │
@@ -155,6 +157,11 @@ All errors follow this structure:
 - `POST /api/v1/analyze/url` - Extract and analyze content from URL
 - `POST /api/v1/analyze/pdf` - Extract and analyze content from PDF file
 - Both return: `{ topics: TopicItem[] }` or error response
+
+**Asset Generation Pipeline** (`/api/v1/generate*`)
+- `POST /api/v1/generate-prompts` - Generate 5 image prompts from topic text (no images)
+- `POST /api/v1/generate-assets` - Full pipeline: prompts + images + processing (30-60s)
+- Returns: `{ storyboardOverview: {...}, assets/images: [...] }` or error response
 
 **Health Check** (`/api/health`)
 - `GET /api/health` - Liveness probe, returns `{ status: "ok", timestamp: "..." }`
@@ -281,15 +288,18 @@ Frontend State Management
 - Maps TTS lines to visual events and checkpoints
 - References `docs/prompt-spec.md` section "Language Model Prompt (Lesson Director)"
 
-**AssetFactoryService** (`backend/app/services/asset_factory.py`) [TODO]
-- Generates image prompts via ImageSteeringService
-- Calls Nano Banana API for high-res image generation
-- Processes images with OpenCV for background removal and grid slicing
+**AssetFactoryService** (`backend/app/services/asset_factory.py`)
+- Calls Nano Banana Pro API for high-res image generation (async polling with backoff)
+- Processes images with OpenCV HSV Smart Key for background removal
+- Preserves teal (H: 80-100) and orange (H: 10-25) accent colors
+- Generates transparent PNG assets in parallel for performance
+- Uses module-level singleton with shared aiohttp session
 
-**ImageSteeringService** (`backend/app/services/image_steering.py`) [TODO]
-- Analyzes topics and generates sketch-note style image prompts
+**ImageSteeringService** (`backend/app/services/image_steering.py`)
+- Analyzes topics and generates exactly 5 sketch-note style image prompts via Gemini
 - Ensures visual consistency (Black/White + Teal/Orange accents)
-- Generates 4 specific + 1 grid layout for flexibility
+- Validates mandatory prompt prefix and enforces exactly 5 images
+- Implements 1-retry logic for validation failures
 
 **TTSService** (`backend/app/services/tts_service.py`) [TODO]
 - Generates audio from lesson narration script
@@ -308,8 +318,13 @@ Custom exceptions in `backend/app/services/exceptions.py`:
   - `ContentTooShortError` (<100 chars)
   - `ContentTooLongError` (>50,000 chars)
 - `TopicExtractionError` (base)
-  - `InvalidAPIKeyError`
+  - `InvalidAPIKeyError` (shared with ImageSteeringService - both use Gemini)
   - `TopicExtractionFailedError` (LLM generation failed)
+- `ImageGenerationError` (base)
+  - `ImagePromptGenerationError` (Gemini prompt generation failed)
+  - `InvalidImagePromptCountError` (not exactly 5 prompts)
+  - `NanoBananaAPIError` (image generation API errors)
+  - `ImageProcessingError` (OpenCV processing failures)
 
 ## Key Implementation Details
 
@@ -366,6 +381,8 @@ Custom exceptions in `backend/app/services/exceptions.py`:
 4. **Use structured exceptions**: Custom exceptions with descriptive error codes
 5. **Log appropriately**: Use logging module, not print statements
 6. **Service singletons**: Module-level service instances for performance (stateless for request data)
+7. **Session management**: Shared HTTP sessions in singletons must not be closed per-request (race condition risk)
+8. **Pydantic validation**: Use `max_length` constraints carefully - they prevent graceful handling of excess data
 
 ### Frontend Development
 
@@ -396,11 +413,12 @@ Custom exceptions in `backend/app/services/exceptions.py`:
 ## Feature Implementation Roadmap
 
 ### Phase 1: MVP (Current)
-- ✅ Content Ingestion (URLs, PDFs)
-- ✅ Topic Extraction (Librarian Agent)
-- 🔄 Lesson Script Generation (AIDirectorService)
-- 🔄 Asset Generation & Processing
-- 🔄 Audio Generation & Sync
+- ✅ Content Ingestion (URLs, PDFs) - ContentIngestorService
+- ✅ Topic Extraction (Librarian Agent) - LibrarianService
+- ✅ Image Prompt Generation - ImageSteeringService
+- ✅ Asset Generation & Processing - AssetFactoryService (Nano Banana + OpenCV)
+- 🔄 Lesson Script Generation - AIDirectorService
+- 🔄 Audio Generation & Sync - TTSService
 - 🔄 Canvas Rendering & Playback
 - 🔄 Interactive Quizzes
 
@@ -457,5 +475,26 @@ For questions about this guide or project architecture:
 
 ---
 
+## Known Issues and Gotchas
+
+### Race Conditions
+- **Fixed**: AssetFactoryService no longer closes shared HTTP session per-request
+- Module-level singletons with async resources must manage lifecycle carefully
+
+### Validation Constraints
+- **Fixed**: ImageSteeringResponse removed `max_length=5` to allow graceful slicing
+- Pydantic `max_length` causes validation errors before code can handle excess data
+
+### Color Processing
+- Teal HSV range in OpenCV: H: 80-100 (not 160-180 which would be magenta)
+- Orange HSV range: H: 10-25
+- Smart Key preserves accent colors while removing white background (S: 0-30, V: 200-255)
+
+### API Polling
+- Nano Banana polling: ~2-2.5 minutes max with exponential backoff (30 attempts)
+- Initial interval: 2s, backoff: 1.2x, max interval: 5s
+
+---
+
 **Last Updated**: 2026-01-31
-**Document Version**: 1.0
+**Document Version**: 1.1
