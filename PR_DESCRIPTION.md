@@ -45,6 +45,22 @@ This PR implements the complete initial setup for the Studyfied project - an AI-
 
 **Location**: `./backend/`
 
+### 📖 Backend Service Documentation
+- ✅ **Librarian Service**: Prompt spec references for topic extraction (T2)
+- ✅ **Image Steering Service**: Visual style specifications for sketchnote assets (T3)
+- ✅ **AI Director Service**: Lesson orchestration and audio-visual sync (T4)
+- ✅ **Asset Factory Service**: Nano Banana Pro image generation with OpenCV processing (T3)
+- ✅ **TTS Service**: ElevenLabs API integration with fallback support (T4)
+- ✅ **Content Ingestor Service**: PDF/URL extraction with validation (T2)
+
+All services include:
+- Prompt specification references to `docs/prompt-spec.md`
+- Implementation guidance and key requirements
+- Related ticket links (T2-T4)
+- Architecture documentation references
+
+**Location**: `./backend/app/services/`
+
 ### 🐳 Docker Compose Orchestration
 - ✅ Multi-service development environment
 - ✅ Frontend service with Vite dev server
