@@ -278,20 +278,7 @@ class AssetFactoryService:
                     code="IMAGE_PROVIDER_CONFIG_MISSING",
                     details={},
                 )
-            client = self._get_gemini_client(api_key)
-
-            generation_config: dict[str, Any] = {}
-            image_config: dict[str, Any] = {}
-            if ai_config.image_aspect_ratio:
-                # Docs use camelCase: aspectRatio
-                image_config["aspectRatio"] = ai_config.image_aspect_ratio
-            if ai_config.image_size:
-                # Docs use camelCase: imageSize (e.g., "2K", "4K")
-                image_config["imageSize"] = ai_config.image_size
-            if image_config:
-                generation_config["imageConfig"] = image_config
-
-            # Use REST for `:generateContent` + `generationConfig.imageConfig` (per docs).
+            # Build image config for Gemini REST API (uses camelCase per docs)
             image_config: dict[str, Any] = {}
             if ai_config.image_aspect_ratio:
                 image_config["aspectRatio"] = ai_config.image_aspect_ratio
