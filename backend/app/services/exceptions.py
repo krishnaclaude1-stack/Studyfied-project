@@ -169,3 +169,78 @@ class ImageProcessingError(ImageGenerationError):
             code="IMAGE_PROCESSING_ERROR",
             details={"reason": reason}
         )
+
+
+class LessonGenerationError(Exception):
+    """Base exception for lesson generation errors."""
+    
+    def __init__(self, message: str, code: str, details: dict | None = None):
+        self.message = message
+        self.code = code
+        self.details = details or {}
+        super().__init__(self.message)
+
+
+class LessonScriptGenerationError(LessonGenerationError):
+    """Raised when Gemini fails to generate valid lesson script."""
+    
+    def __init__(self, reason: str = "Failed to generate lesson script"):
+        super().__init__(
+            message=reason,
+            code="LESSON_SCRIPT_GENERATION_FAILED",
+            details={"reason": reason}
+        )
+
+
+class InvalidLessonDurationError(LessonGenerationError):
+    """Raised when lesson duration exceeds 180 seconds."""
+    
+    def __init__(self, duration: float, max_duration: float = 180.0):
+        super().__init__(
+            message=f"Lesson duration ({duration}s) exceeds maximum allowed ({max_duration}s)",
+            code="INVALID_LESSON_DURATION",
+            details={"duration": duration, "max_duration": max_duration}
+        )
+
+
+class InvalidSceneCountError(LessonGenerationError):
+    """Raised when scene count exceeds 5."""
+    
+    def __init__(self, count: int, max_count: int = 5):
+        super().__init__(
+            message=f"Scene count ({count}) exceeds maximum allowed ({max_count})",
+            code="INVALID_SCENE_COUNT",
+            details={"count": count, "max_count": max_count}
+        )
+
+
+class TTSGenerationError(Exception):
+    """Base exception for TTS-related errors."""
+    
+    def __init__(self, message: str, code: str, details: dict | None = None):
+        self.message = message
+        self.code = code
+        self.details = details or {}
+        super().__init__(self.message)
+
+
+class ElevenLabsAPIError(TTSGenerationError):
+    """Raised when ElevenLabs API calls fail."""
+    
+    def __init__(self, reason: str, status_code: int | None = None):
+        super().__init__(
+            message=f"ElevenLabs API error: {reason}",
+            code="ELEVENLABS_API_ERROR",
+            details={"reason": reason, "status_code": status_code}
+        )
+
+
+class AudioGenerationError(TTSGenerationError):
+    """Raised when audio generation fails."""
+    
+    def __init__(self, reason: str = "Audio generation failed"):
+        super().__init__(
+            message=f"Audio generation error: {reason}",
+            code="AUDIO_GENERATION_ERROR",
+            details={"reason": reason}
+        )

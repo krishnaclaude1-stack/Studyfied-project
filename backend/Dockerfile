@@ -45,13 +45,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements file
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies with cache mount for faster rebuilds
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
 
 # Install Playwright browser with dependencies (Chromium only for smaller image size)
-RUN PLAYWRIGHT_BROWSERS_PATH=/ms-playwright playwright install --with-deps chromium
+# This layer is cached unless requirements.txt changes
+RUN PLAYWRIGHT_BROWSERS_PATH=/ms-playwright playwright install chromium
 
-# Copy application code
+# Copy application code (this layer changes frequently, so do it last)
 COPY . .
 
 # Expose port
