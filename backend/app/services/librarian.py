@@ -162,7 +162,8 @@ Extract topics following the rules and output valid JSON."""
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse Gemini response as JSON: {e}")
                 if retry_count < 1:
-                    logger.info("Retrying with adjusted prompt...")
+                    # Retry with same prompt; LLM randomness (temperature=0.7) may yield valid JSON
+                    logger.info("Retrying request (attempt 2/2)...")
                     return await self.extract_topics(raw_text, retry_count + 1)
                 raise TopicExtractionFailedError(f"Invalid JSON response: {e}")
             
@@ -174,7 +175,8 @@ Extract topics following the rules and output valid JSON."""
             except ValidationError as e:
                 logger.error(f"Pydantic validation failed: {e}")
                 if retry_count < 1:
-                    logger.info("Retrying with adjusted prompt due to validation failure...")
+                    # Retry with same prompt; LLM randomness may yield valid schema
+                    logger.info("Retrying request due to validation failure (attempt 2/2)...")
                     return await self.extract_topics(raw_text, retry_count + 1)
                 raise TopicExtractionFailedError(f"Response validation failed: {e}")
                 

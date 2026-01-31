@@ -11,7 +11,7 @@ Orchestrates ContentIngestorService and LibrarianService to:
 """
 
 import logging
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Union
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
@@ -41,7 +41,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["analyze"])
 
-# Service instances
+# Service instances (module-level singletons shared across all requests).
+# This is intentional for performance - avoids recreating browser configs and API clients.
+# These services are stateless for request-specific data, so sharing is safe.
 content_ingestor = ContentIngestorService()
 librarian = LibrarianService()
 
@@ -144,7 +146,7 @@ async def _process_and_extract_topics(raw_text: str, source_description: str):
     Returns a list of 1-5+ topics based on content density, each suitable for a 2-3 minute video lesson.
     """
 )
-async def analyze_url(request: AnalyzeUrlRequest) -> AnalyzeResponse:
+async def analyze_url(request: AnalyzeUrlRequest) -> Union[AnalyzeResponse, JSONResponse]:
     """
     Analyze URL content and extract topics.
     
@@ -205,7 +207,7 @@ async def analyze_url(request: AnalyzeUrlRequest) -> AnalyzeResponse:
 )
 async def analyze_pdf(
     file: Annotated[UploadFile, File(description="PDF file to analyze")]
-) -> AnalyzeResponse:
+) -> Union[AnalyzeResponse, JSONResponse]:
     """
     Analyze PDF content and extract topics.
     
