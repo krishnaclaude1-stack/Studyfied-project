@@ -1,8 +1,15 @@
 """
 Text-to-Speech Service
 
-Responsible for converting text to speech audio.
-This is a placeholder for the MVP implementation.
+Converts narration text to speech audio for lesson playback.
+
+Implementation Guide:
+- Production: ElevenLabs API (Rachel voice)
+- Development: Browser TTS fallback
+- Input: Narration text from AI Director
+- Output: Audio blob URL for playback
+- Related Ticket: T4 - AI Pipeline - Lesson Script Generation & Audio
+- Tech Plan: Canvas Rendering & AI Visual Pipeline (Refocused) (Section 3.2)
 """
 
 
